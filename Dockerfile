@@ -2,27 +2,29 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+# 1) deps
 COPY package*.json ./
 RUN npm ci || npm install
+
+# 2) sources
 COPY . .
 
-# Build Next.js app
+# 3) s'assurer que "public" existe (même vide)
+RUN mkdir -p /app/public
+
+# 4) build Next.js (produit .next ; si output=standalone => .next/standalone)
 RUN npm run build
 
 # --- runner ---
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+ENV PORT=3000
 
-# Copie des fichiers nécessaires au runtime Next.js
-# (Next 13+ avec output=standalone génère .next/standalone)
+# 5) copier le serveur standalone et les assets
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
-# Le dossier public est optionnel
-RUN mkdir -p ./public
-COPY --from=build /app/public ./public 2>/dev/null || true
+COPY --from=build /app/public ./public 
 
-ENV PORT=3000
 EXPOSE 3000
-
 CMD ["node", "server.js"]
