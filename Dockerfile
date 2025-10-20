@@ -29,10 +29,13 @@
 # EXPOSE 3000
 # CMD ["node", "server.js"]
 # --- deps ---
+# --- deps ---
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+# copie le lock s'il existe (sinon ignore)
+COPY package.json package-lock.json* ./
+# si lockfile => npm ci ; sinon => npm install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 # --- build ---
 FROM node:20-alpine AS build
@@ -41,15 +44,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# --- run ---
+# --- run (standalone recommandé avec next.config.js: { output: 'standalone' }) ---
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# IMPORTANT pour Render : bind sur 0.0.0.0 et laisser Render fournir $PORT
 ENV HOSTNAME=0.0.0.0
 
-# Copie seulement ce qui est nécessaire à l’exécution
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
