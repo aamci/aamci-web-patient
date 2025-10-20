@@ -20,11 +20,14 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
-
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 # 5) copier le serveur standalone et les assets
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public 
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+
+# IMPORTANT: écoute sur 0.0.0.0 et le $PORT fourni par Render
+CMD ["sh", "-c", "next start -H 0.0.0.0 -p ${PORT:-3000}"]
