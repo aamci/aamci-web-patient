@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 export default function HealthPage() {
+  console.log('Rendering HealthPage: ',process.env.NEXT_PUBLIC_API_BASE_URL);
   return (
     <div style={{ padding: 24 }}>
       <h2>✅ Web-Patient Front is Healthy</h2>
