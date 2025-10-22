@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 function getApiBase(): string | null { 
   let b=process.env.NEXT_PUBLIC_API_BASE_URL??'';
-  console.log('API BASE ENV:',b);
-   b=b.trim().replace(/^['"]|['"]$/g,'').replace(/\/+$/,''); if(!b) return null; try{ new URL(b); return b;}catch{return null;} }
+  console.log('API BASE ENV:',process.env.NEXT_PUBLIC_API_BASE_URL);
+  b=b.trim().replace(/^['"]|['"]$/g,'').replace(/\/+$/,''); if(!b) return null; try{ new URL(b); return b;}catch{return null;} }
 async function callApi(p:string,i?:RequestInit){ 
   const b=getApiBase();
   console.log('API BASE:',b);
