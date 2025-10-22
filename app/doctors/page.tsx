@@ -1,9 +1,18 @@
 // apps/web-patient/app/doctors/page.tsx
 import Link from 'next/link';
 
-function getApiBase() {
-  let base = process.env.NEXT_PUBLIC_API_BASE_URL?.trim().replace(/^['"]|['"]$/g,'').replace(/\/+$/,'') || '';
-  try { return base ? new URL(base).toString().replace(/\/$/,'') : ''; } catch { return ''; }
+
+function getApiBase(): string | null {
+  let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+    console.log('API BASE ENV:',base);
+  base = base.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
+  try { return base ? new URL(base).toString().replace(/\/$/,'') : null; } catch { return null; }
+}
+async function callApi(path: string, init?: RequestInit) {
+  const base = getApiBase();
+
+  const url = base ? `${base}${path}` : path;
+  return fetch(url, init);
 }
 
 export default async function DoctorsPage(
@@ -14,6 +23,7 @@ export default async function DoctorsPage(
   const city = sp?.city ?? '';
 
   const api = getApiBase();
+  console.log('API BASE:',api);
   const url = api
     ? `${api}/search/doctors?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}`
     : `/search/doctors?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}`;
