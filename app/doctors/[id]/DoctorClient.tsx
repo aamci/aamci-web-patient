@@ -4,11 +4,13 @@ import { useRouter } from 'next/navigation';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+    console.log('API BASE ENV:',base);
   base = base.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
   try { return base ? new URL(base).toString().replace(/\/$/,'') : null; } catch { return null; }
 }
 async function callApi(path: string, init?: RequestInit) {
   const base = getApiBase();
+   console.log('API BASE:',base);
   const url = base ? `${base}${path}` : path;
   return fetch(url, init);
 }
