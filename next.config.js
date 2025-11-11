@@ -2,9 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone', // <- add this
-  // env: {
-  //   NEXT_PUBLIC_API_BASE_URL: 'https://api-ieis.onrender.com',
-  // },
+  env: {
+    NEXT_PUBLIC_API_BASE_URL: 'https://api-ieis.onrender.com',
+  },
   experimental: { typedRoutes: true },
 };
 module.exports = nextConfig;
