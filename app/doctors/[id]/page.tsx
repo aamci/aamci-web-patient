@@ -1,8 +1,14 @@
-import DoctorClient from './DoctorClient';
 
-export default async function Page(
-  { params }: { params: Promise<{ id: string }> } // 👈 Promise ici
-) {
-  const { id } = await params;                   // 👈 on attend la Promise
-  return <DoctorClient id={id} />;
+
+import SlotsGridForPatient from './SlotsGridForPatient';
+
+export default async function DoctorPage(props: { params: Promise<{ id: string }> }) {
+    const { id } = await props.params;
+
+  return (
+    <div style={{ padding: '24px 0', display: 'grid', gap: 16 }}>
+      {/* ... fiche doctor ... */}
+      <SlotsGridForPatient doctorId={id} />
+    </div>
+  );
 }
