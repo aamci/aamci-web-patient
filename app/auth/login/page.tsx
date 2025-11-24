@@ -1,7 +1,9 @@
 'use client';
+
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../_providers/AuthProvider'; // 👈 assure-toi du bon chemin
+import { useAuth } from '@/app/_providers/AuthProvider';
+import styles from './LoginPage.module.css';
 
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -21,10 +23,9 @@ async function callApi(p: string, i?: RequestInit) {
   return fetch(u, i);
 }
 
-export default function Login() {
+export default function LoginPage() {
   const router = useRouter();
-  const { login: setAuthToken } = useAuth(); // 👈 on récupère la fonction du contexte
-
+  const { login: setAuthToken } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
@@ -57,9 +58,10 @@ export default function Login() {
         return;
       }
 
-      const body = action === 'register'
-        ? { email, password, role: 'PATIENT' }
-        : { email, password };
+      const body =
+        action === 'register'
+          ? { email, password, role: 'PATIENT' }
+          : { email, password };
 
       const r = await callApi(
         action === 'register' ? '/auth/register' : '/auth/login',
@@ -78,19 +80,15 @@ export default function Login() {
       const d = await r.json();
 
       if (d?.access_token) {
-        // 1) on garde ton ancien comportement
         setToken(d.access_token);
         localStorage.setItem('token', d.access_token);
         remember
           ? localStorage.setItem('login_email', email)
           : localStorage.removeItem('login_email');
 
-        // 2) 👇 très important : on met à jour le contexte
-        //    ça permet à la Navbar de se re-render sans refresh
+        // update contexte
         setAuthToken(d.access_token);
 
-        // 3) si le token contient le rôle, le provider le lira
-        //    ici on peut juste renvoyer à l’accueil
         router.replace('/');
       } else {
         setErr('Réponse inattendue du serveur.');
@@ -103,101 +101,103 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-wrap">
-      <section className="auth-card">
-        <header className="auth-head">
-          <div className="auth-logo">🩺</div>
+    <div className={styles.root}>
+      <section className={styles.card}>
+        <header className={styles.header}>
+          <div className={styles.badge}>🙂</div>
           <div>
-            <h1 className="auth-title">Connexion </h1>
-            <p className="auth-sub">Accédez à votre espace patient</p>
+            <h1 className={styles.title}>Connexion</h1>
+            <p className={styles.subtitle}>
+              Accédez à votre espace patient et gérez vos rendez-vous.
+            </p>
           </div>
         </header>
-        <div className="form">
-          <div>
-            <label htmlFor="email" className="small" style={{ fontWeight: 700, color: '#111827' }}>
+
+        <div className={styles.form}>
+          <div className={styles.field}>
+            <label htmlFor="email" className={styles.label}>
               Email
             </label>
             <input
               id="email"
-              className="input"
+              className={styles.input}
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               aria-invalid={emailInvalid}
               placeholder="vous@exemple.com"
             />
           </div>
-          <div>
-            <label htmlFor="pwd" className="small" style={{ fontWeight: 700, color: '#111827' }}>
+
+          <div className={styles.field}>
+            <label htmlFor="pwd" className={styles.label}>
               Mot de passe
             </label>
-            <div className="pwd-row">
+            <div className={styles.inputRow}>
               <input
                 id="pwd"
-                className="input"
+                className={styles.input}
                 type={showPwd ? 'text' : 'password'}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
               />
               <button
                 type="button"
-                className="btn outline"
-                onClick={() => setShowPwd(s => !s)}
+                className={styles.secondaryBtn}
+                onClick={() => setShowPwd((s) => !s)}
               >
                 {showPwd ? 'Masquer' : 'Afficher'}
               </button>
             </div>
           </div>
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <label className="row" style={{ gap: 8 }}>
+
+          <div className={styles.rowBetween}>
+            <label className={styles.checkboxRow}>
               <input
                 type="checkbox"
                 checked={remember}
-                onChange={e => setRemember(e.target.checked)}
+                onChange={(e) => setRemember(e.target.checked)}
               />
-              <span className="small">Se souvenir de moi</span>
+              <span>Se souvenir de moi</span>
             </label>
-            <a className="link small" href="#">
+            <a className={styles.link} href="#">
               Mot de passe oublié ?
             </a>
           </div>
-          {err && <div className="banner error">{err}</div>}
-          {token && <div className="banner success">Connecté ✔</div>}
-          <div className="row" style={{ flexWrap: 'wrap' }}>
+
+          {err && <div className={styles.bannerError}>{err}</div>}
+          {token && <div className={styles.bannerSuccess}>Connecté ✔</div>}
+
+          <div className={styles.btnRow}>
             <button
-              className="btn primary"
+              type="button"
+              className={styles.primaryBtn}
               disabled={loading}
               onClick={() => handle('login')}
             >
               {loading ? 'Connexion…' : 'Se connecter'}
             </button>
             <button
-              className="btn ghost"
+              type="button"
+              className={styles.secondaryBtn}
               disabled={loading}
               onClick={() => handle('register')}
             >
               Créer un compte
             </button>
           </div>
-          <div className="row" style={{ justifyContent: 'center', color: 'var(--muted)' }}>
-            — ou —
-          </div>
-          <div className="row" style={{ flexWrap: 'wrap' }}>
-            <button className="btn outline" disabled>
+
+          <div className={styles.divider}>— ou —</div>
+
+          <div className={styles.socialRow}>
+            <button className={styles.secondaryBtn} type="button" disabled>
               Continuer avec Google (bientôt)
             </button>
-            <button className="btn outline" disabled>
+            <button className={styles.secondaryBtn} type="button" disabled>
               Continuer avec Apple (bientôt)
             </button>
           </div>
-          <p className="small">
-            En vous connectant, vous acceptez nos <a className="link" href="#">Conditions</a> et notre{' '}
-            <a className="link" href="#">Politique de confidentialité</a>.
-          </p>
-          <a className="btn secondary" href="/protected">
-            Aller à la page protégée
-          </a>
         </div>
       </section>
     </div>

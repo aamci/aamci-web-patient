@@ -3,18 +3,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Helper "safe" pour l’URL API (évite les throws si env manquant)
+// Helper "safe" pour l’URL API
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
   b = b.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
   if (!b) return null;
-  try { new URL(b); return b; } catch { return null; }
+  try {
+    new URL(b);
+    return b;
+  } catch {
+    return null;
+  }
 }
 
-// Types (adapte si besoin à ton schéma réel)
+type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
+
 type Appointment = {
   id: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
+  status: AppointmentStatus;
   createdAt: string;
   notes?: string | null;
   slot?: {
@@ -23,30 +29,36 @@ type Appointment = {
     ownerType?: 'DOCTOR' | 'HOSPITAL';
     ownerId?: string;
   } | null;
-  doctor?: { id: string; name: string } | null;   // si ton API hydrate
-  hospital?: { id: string; name: string } | null; // si ton API hydrate
+  doctor?: { id: string; name: string } | null;
+  hospital?: { id: string; name: string } | null;
 };
 
 export default function AppointmentsPage() {
   const router = useRouter();
+  const apiBase = useMemo(() => getApiBase(), []);
+
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
 
-  const apiBase = useMemo(() => getApiBase(), []);
-
   async function callApi(path: string, init?: RequestInit) {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token =
+      typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (!token) throw new Error('Non authentifié');
-    const headers: Record<string, string> = { ...(init?.headers as any) };
-    headers['Authorization'] = `Bearer ${token}`;
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+
+    const headers: Record<string, string> = {
+      ...(init?.headers as any),
+      Authorization: `Bearer ${token}`,
+    };
+    if (init?.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     const url = apiBase ? `${apiBase}${path}` : `/api-proxy${path}`;
     const r = await fetch(url, { ...init, headers, cache: 'no-store' });
     if (!r.ok) {
-      const txt = await r.text().catch(()=>'');
+      const txt = await r.text().catch(() => '');
       throw new Error(`HTTP ${r.status}${txt ? ` — ${txt}` : ''}`);
     }
     return r.json();
@@ -57,7 +69,6 @@ export default function AppointmentsPage() {
     setErr(null);
     try {
       const data = await callApi('/appointments', { method: 'GET' });
-      // Ton API peut renvoyer {data:[...]} ou un tableau direct
       const list: Appointment[] = Array.isArray(data) ? data : data?.data || [];
       setItems(list);
     } catch (e: any) {
@@ -79,8 +90,9 @@ export default function AppointmentsPage() {
         method: 'PATCH',
         body: JSON.stringify({ status: 'CANCELLED' }),
       });
-      // rafraîchit la liste localement sans recharger tout
-      setItems(prev => prev.map(a => a.id === apptId ? { ...a, status: 'CANCELLED' } : a));
+      setItems((prev) =>
+        prev.map((a) => (a.id === apptId ? { ...a, status: 'CANCELLED' } : a)),
+      );
     } catch (e: any) {
       setErr(e?.message || 'Échec de l’annulation');
     } finally {
@@ -89,69 +101,138 @@ export default function AppointmentsPage() {
   }
 
   useEffect(() => {
-    // pas de token → go login
     if (typeof window !== 'undefined' && !localStorage.getItem('token')) {
       router.replace('/auth/login');
       return;
     }
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <div style={{ display:'grid', gap:16, padding:'24px 0' }}>
-      <h1>Mes rendez-vous</h1>
+    <div className="mx-auto max-w-5xl px-4 py-6 space-y-4">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-lg font-semibold text-slate-900">
+          Mes rendez-vous
+        </h1>
+        <p className="text-sm text-slate-500">
+          Retrouvez ici tous vos rendez-vous passés et à venir.
+        </p>
+      </header>
 
-      {err && <div className="banner error">{err}</div>}
+      {err && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {err}
+        </div>
+      )}
 
       {loading ? (
-        <div className="card">Chargement…</div>
+        <div className="card text-sm text-slate-600">Chargement…</div>
       ) : items.length === 0 ? (
-        <div className="card">
-          <strong>Aucun rendez-vous pour le moment.</strong>
-          <div style={{ marginTop:8 }}>
-            <a className="btn primary" href="/doctors">Prendre un rendez-vous</a>
+        <div className="card flex flex-col gap-3">
+          <div className="text-sm font-medium text-slate-900">
+            Aucun rendez-vous pour le moment.
+          </div>
+          <p className="text-sm text-slate-500">
+            Prenez votre premier rendez-vous en ligne avec un médecin ou un
+            établissement partenaire.
+          </p>
+          <div>
+            <a className="btn-primary" href="/doctors">
+              Trouver un médecin
+            </a>
           </div>
         </div>
       ) : (
-        <div className="grid" style={{ gridTemplateColumns:'1fr', gap:12 }}>
+        <div className="grid gap-3">
           {items.map((a) => {
             const start = a.slot?.start ? new Date(a.slot.start) : null;
             const end = a.slot?.end ? new Date(a.slot.end) : null;
-            const who = a.doctor?.name ?? a.hospital?.name ?? (a.slot?.ownerType === 'DOCTOR' ? 'Docteur' : 'Hôpital');
+            const who =
+              a.doctor?.name ??
+              a.hospital?.name ??
+              (a.slot?.ownerType === 'DOCTOR'
+                ? 'Consultation avec un médecin'
+                : 'Consultation en établissement');
 
             return (
-              <div key={a.id} className="card" style={{ display:'grid', gap:8 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <article
+                key={a.id}
+                className="card flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+              >
+                {/* Bloc gauche : infos rendez-vous */}
+                <div className="space-y-2">
                   <div>
-                    <strong>{who}</strong>
-                    <div className="small" style={{ color:'var(--muted)' }}>
-                      {start ? start.toLocaleString() : 'Date à venir'}
-                      {end ? ` — ${end.toLocaleTimeString()}` : ''}
+                    <div className="text-sm font-semibold text-slate-900">
+                      {who}
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {start ? (
+                        <>
+                          {start.toLocaleDateString('fr-FR', {
+                            weekday: 'short',
+                            day: '2-digit',
+                            month: 'short',
+                          })}{' '}
+                          •{' '}
+                          {start.toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {end &&
+                            ` – ${end.toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}`}
+                        </>
+                      ) : (
+                        'Date à venir'
+                      )}
                     </div>
                   </div>
-                  <StatusBadge status={a.status} />
-                </div>
 
-                {a.notes && <div className="small" style={{ color:'var(--muted)' }}>{a.notes}</div>}
-
-                <div style={{ display:'flex', gap:8 }}>
-                  <a className="btn outline" href={`/doctors/${a.slot?.ownerId ?? ''}`}>Voir la fiche</a>
-                  {a.status !== 'CANCELLED' && (
-                    <button
-                      className="btn"
-                      disabled={actionId === a.id}
-                      onClick={() => cancel(a.id)}
-                    >
-                      {actionId === a.id ? 'Annulation…' : 'Annuler'}
-                    </button>
+                  {a.notes && (
+                    <p className="text-xs text-slate-600">{a.notes}</p>
                   )}
+
+                  <p className="text-[11px] text-slate-400">
+                    Créé le{' '}
+                    {new Date(a.createdAt).toLocaleString('fr-FR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
                 </div>
 
-                <div className="small" style={{ color:'var(--muted)' }}>
-                  Créé le {new Date(a.createdAt).toLocaleString()}
+                {/* Bloc droit : statut + actions */}
+                <div className="mt-2 flex flex-col items-start gap-2 sm:mt-0 sm:items-end">
+                  <StatusBadge status={a.status} />
+
+                  <div className="flex flex-wrap gap-2">
+                    {a.slot?.ownerId && (
+                      <a
+                        className="btn-outline text-xs"
+                        href={`/doctors/${a.slot.ownerId}`}
+                      >
+                        Voir la fiche
+                      </a>
+                    )}
+                    {a.status !== 'CANCELLED' && (
+                      <button
+                        type="button"
+                        className="btn text-xs bg-rose-50 text-rose-700 hover:bg-rose-100"
+                        disabled={actionId === a.id}
+                        onClick={() => cancel(a.id)}
+                      >
+                        {actionId === a.id ? 'Annulation…' : 'Annuler'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -160,20 +241,36 @@ export default function AppointmentsPage() {
   );
 }
 
-function StatusBadge({ status }:{ status: Appointment['status'] }) {
-  const map: Record<Appointment['status'], { label: string; bg: string; color: string }> = {
-    PENDING:   { label: 'En attente',   bg: '#fff6e5', color: '#a15c00' },
-    CONFIRMED: { label: 'Confirmé',     bg: '#e9f8ee', color: '#0f7b3b' },
-    CANCELLED: { label: 'Annulé',       bg: '#f6e9eb', color: '#8a1023' },
-    NO_SHOW:   { label: 'Non-présent',  bg: '#f0f3f7', color: '#3c4a5e' },
+function StatusBadge({ status }: { status: AppointmentStatus }) {
+  const map: Record<
+    AppointmentStatus,
+    { label: string; classes: string }
+  > = {
+    PENDING: {
+      label: 'En attente',
+      classes: 'bg-amber-50 text-amber-700',
+    },
+    CONFIRMED: {
+      label: 'Confirmé',
+      classes: 'bg-emerald-50 text-emerald-700',
+    },
+    CANCELLED: {
+      label: 'Annulé',
+      classes: 'bg-rose-50 text-rose-700',
+    },
+    NO_SHOW: {
+      label: 'Non-présent',
+      classes: 'bg-slate-100 text-slate-700',
+    },
   };
-  const s = map[status];
+
+  const v = map[status];
+
   return (
-    <span style={{
-      background:s.bg, color:s.color, padding:'4px 8px',
-      borderRadius:999, fontSize:12, fontWeight:600
-    }}>
-      {s.label}
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${v.classes}`}
+    >
+      {v.label}
     </span>
   );
 }

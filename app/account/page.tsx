@@ -20,6 +20,7 @@ export default function AccountPage() {
   const { token, updateUser } = useAuth();
   const router = useRouter();
   const apiBase = useMemo(() => getApiBase(), []);
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -46,8 +47,14 @@ export default function AccountPage() {
     if (!token) throw new Error('Non authentifié');
     const headers: Record<string, string> = { ...(init?.headers as any) };
     headers['Authorization'] = `Bearer ${token}`;
-    if (init?.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-    const r = await fetch(buildUrl(path), { ...init, headers, cache: 'no-store' });
+    if (init?.body && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    const r = await fetch(buildUrl(path), {
+      ...init,
+      headers,
+      cache: 'no-store',
+    });
     if (!r.ok) {
       const t = await r.text().catch(() => '');
       throw new Error(`HTTP ${r.status}${t ? ` — ${t}` : ''}`);
@@ -73,7 +80,6 @@ export default function AccountPage() {
         setPhone(data.phone ?? '');
         setSex(data.sex ?? '');
         setCity(data.city ?? '');
-        // si c'est du ISO on peut faire split
         if (data.birthdate) {
           setBirthdate(String(data.birthdate).substring(0, 10));
         }
@@ -104,7 +110,6 @@ export default function AccountPage() {
         }),
       });
       const updated = await r.json();
-      // met à jour le contexte → navbar
       updateUser({
         email: updated.email,
         fullName: updated.fullName,
@@ -147,94 +152,205 @@ export default function AccountPage() {
   }
 
   if (loading) {
-    return <div style={{ padding: 24 }}>Chargement…</div>;
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6">
+        <div className="card text-sm text-slate-600">Chargement…</div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ maxWidth: 650, margin: '24px auto', display: 'grid', gap: 20 }}>
-      <h1>Mon compte</h1>
-      {err && <div className="banner error">{err}</div>}
-      {ok && <div className="banner success">{ok}</div>}
+    <div className="mx-auto max-w-3xl px-4 py-6 space-y-4">
+      <header className="space-y-1">
+        <h1 className="text-lg font-semibold text-slate-900">Mon compte</h1>
+        <p className="text-sm text-slate-500">
+          Mettez à jour vos informations personnelles et votre mot de passe.
+        </p>
+      </header>
 
-      {/* Formulaire profil */}
+      {err && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {err}
+        </div>
+      )}
+      {ok && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {ok}
+        </div>
+      )}
+
+      {/* Profil */}
       <form
         onSubmit={handleProfileSubmit}
-        style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, display: 'grid', gap: 14 }}
+        className="card space-y-4"
       >
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Informations personnelles</h2>
-
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <AvatarLarge src={avatarUrl} name={fullName || email} />
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <label className="small">URL de la photo</label>
-            <input value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} placeholder="https://..." />
-            <div style={{ fontSize: 11, color: '#777' }}>Upload viendra plus tard</div>
+            <h2 className="text-sm font-semibold text-slate-900">
+              Informations personnelles
+            </h2>
+            <p className="text-xs text-slate-500">
+              Ces informations sont utilisées pour vos rendez-vous et vos
+              documents.
+            </p>
           </div>
         </div>
 
-        <div>
-          <label className="small">Nom complet</label>
-          <input value={fullName} onChange={e => setFullName(e.target.value)} />
-        </div>
-
-        <div>
-          <label className="small">Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-        </div>
-
-        <div>
-          <label className="small">Téléphone</label>
-          <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+33..." />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label className="small">Sexe</label>
-            <select value={sex} onChange={e => setSex(e.target.value as any)}>
-              <option value="">—</option>
-              <option value="MALE">Homme</option>
-              <option value="FEMALE">Femme</option>
-              <option value="OTHER">Autre</option>
-            </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label className="small">Date de naissance</label>
-            <input type="date" value={birthdate} onChange={e => setBirthdate(e.target.value)} />
+        <div className="flex items-center gap-4">
+          <AvatarLarge src={avatarUrl} name={fullName || email} />
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              URL de la photo
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              value={avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              placeholder="https://..."
+            />
+            <p className="text-xs text-slate-400">
+              L’upload direct arrivera plus tard. Pour l’instant, vous pouvez
+              coller l’URL d’une image.
+            </p>
           </div>
         </div>
 
-        <div>
-          <label className="small">Ville</label>
-          <input value={city} onChange={e => setCity(e.target.value)} />
+        <div className="grid gap-3">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Nom complet
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Prénom Nom"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Email
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="vous@exemple.com"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Téléphone
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+33..."
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Sexe
+              </label>
+              <select
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                value={sex}
+                onChange={(e) => setSex(e.target.value as any)}
+              >
+                <option value="">—</option>
+                <option value="MALE">Homme</option>
+                <option value="FEMALE">Femme</option>
+                <option value="OTHER">Autre</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-slate-700">
+                Date de naissance
+              </label>
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                type="date"
+                value={birthdate}
+                onChange={(e) => setBirthdate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Ville
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Paris, Lyon…"
+            />
+          </div>
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button type="submit" className="btn primary">
+        <div className="flex justify-end">
+          <button type="submit" className="btn primary text-sm">
             Enregistrer
           </button>
         </div>
       </form>
 
-      {/* Formulaire mot de passe */}
-      <form
-        onSubmit={handlePasswordSubmit}
-        style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, display: 'grid', gap: 12 }}
-      >
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Mot de passe</h2>
+      {/* Mot de passe */}
+      <form onSubmit={handlePasswordSubmit} className="card space-y-4">
         <div>
-          <label className="small">Mot de passe actuel</label>
-          <input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} />
+          <h2 className="text-sm font-semibold text-slate-900">
+            Mot de passe
+          </h2>
+          <p className="text-xs text-slate-500">
+            Choisissez un mot de passe fort pour sécuriser votre compte.
+          </p>
         </div>
-        <div>
-          <label className="small">Nouveau mot de passe</label>
-          <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
+
+        <div className="grid gap-3">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Mot de passe actuel
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              type="password"
+              value={currentPwd}
+              onChange={(e) => setCurrentPwd(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Nouveau mot de passe
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              type="password"
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-slate-700">
+              Confirmer le mot de passe
+            </label>
+            <input
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              type="password"
+              value={confirmPwd}
+              onChange={(e) => setConfirmPwd(e.target.value)}
+            />
+          </div>
         </div>
-        <div>
-          <label className="small">Confirmer le mot de passe</label>
-          <input type="password" value={confirmPwd} onChange={e => setConfirmPwd(e.target.value)} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="submit" className="btn">
+
+        <div className="flex justify-end">
+          <button type="submit" className="btn text-sm">
             Mettre à jour le mot de passe
           </button>
         </div>
@@ -244,36 +360,27 @@ export default function AccountPage() {
 }
 
 function AvatarLarge({ src, name }: { src?: string | null; name: string }) {
-  const initials = name
-    .split(' ')
-    .map(p => p.charAt(0).toUpperCase())
-    .slice(0, 2)
-    .join('');
+  const initials =
+    name
+      ?.split(' ')
+      .map((p) => p.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('') || 'U';
+
   if (src) {
+    // eslint-disable-next-line @next/next/no-img-element
     return (
       <img
         src={src}
         alt={name}
-        style={{ width: 58, height: 58, borderRadius: '999px', objectFit: 'cover' }}
+        className="h-14 w-14 rounded-full object-cover"
       />
     );
   }
+
   return (
-    <div
-      style={{
-        width: 58,
-        height: 58,
-        borderRadius: '999px',
-        background: '#dfe3e8',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: 16,
-        fontWeight: 600,
-        color: '#333',
-      }}
-    >
-      {initials || 'U'}
+    <div className="grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-base font-semibold text-slate-700">
+      {initials}
     </div>
   );
 }
