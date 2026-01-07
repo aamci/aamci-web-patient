@@ -14,73 +14,64 @@ type AuthUser = {
 
 type AuthContextValue = {
   user: AuthUser | null;
-  token: string | null;
   loading: boolean;
-  login: (token: string) => void;
-  logout: () => void;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   updateUser: (data: Partial<AuthUser>) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function decodeJwt(token: string): Partial<AuthUser> {
-  try {
-    const payload = JSON.parse(
-      Buffer.from(token.split('.')[1], 'base64').toString('utf8'),
-    );
-    return {
-      id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-    };
-  } catch {
-    return {};
-  }
+function getApiBase(): string {
+  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // hydrate from localStorage côté client
+  // Fetch user from backend on mount (cookie is sent automatically)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = localStorage.getItem('token');
-    if (stored) {
-      setToken(stored);
-      const base = decodeJwt(stored);
-      setUser((prev) => ({
-        id: base.id || prev?.id || '',
-        email: base.email || prev?.email || '',
-        role: base.role || prev?.role,
-        fullName: prev?.fullName ?? null,
-        avatarUrl: prev?.avatarUrl ?? null,
-      }));
-    }
-    setLoading(false);
+    fetchUser();
   }, []);
 
-  const login = (t: string) => {
-    setToken(t);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('token', t);
+  const fetchUser = async () => {
+    try {
+      const apiBase = getApiBase();
+      const res = await fetch(`${apiBase}/auth/me`, {
+        credentials: 'include', // Send cookies with request
+      });
+
+      if (res.ok) {
+        const userData = await res.json();
+        setUser(userData);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-    const base = decodeJwt(t);
-    setUser((prev) => ({
-      id: base.id || prev?.id || '',
-      email: base.email || prev?.email || '',
-      role: base.role || prev?.role,
-      fullName: prev?.fullName ?? null,
-      avatarUrl: prev?.avatarUrl ?? null,
-    }));
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
+  const login = async () => {
+    // Refetch user after login (cookie is already set by backend)
+    await fetchUser();
+  };
+
+  const logout = async () => {
+    try {
+      const apiBase = getApiBase();
+      await fetch(`${apiBase}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include', // Send cookies with request
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setUser(null);
     }
   };
 
@@ -92,7 +83,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthContextValue = {
     user,
-    token,
     loading,
     login,
     logout,
@@ -103,21 +93,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * 🔑 Nouveau comportement : 
- * - si le contexte n’est pas présent (prerender, erreur, etc.)
- *   → on renvoie un "fake" contexte déconnecté
- *   → PAS d’exception → plus d’erreur de prerender
+ * Safe hook that returns auth context with fallback for SSR/prerender
  */
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    // fallback safe pour le prerender / _not-found / etc.
+    // Fallback for SSR/prerender/errors
     return {
       user: null,
-      token: null,
       loading: false,
-      login: () => {},
-      logout: () => {},
+      login: async () => {},
+      logout: async () => {},
       updateUser: () => {},
     };
   }

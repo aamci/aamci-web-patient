@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/_providers/AuthProvider';
+import { loginSchema, registerSchema } from './validation';
 import styles from './LoginPage.module.css';
 
 function getApiBase(): string | null {
@@ -32,6 +33,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -40,34 +42,37 @@ export default function LoginPage() {
     if (s) setEmail(s);
   }, []);
 
-  const emailInvalid = useMemo(
-    () => (!email ? false : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
-    [email],
-  );
-
   async function handle(action: 'login' | 'register') {
     setErr(null);
+    setValidationErrors({});
     setLoading(true);
     try {
-      if (!email || !password) {
-        setErr('Veuillez renseigner votre email et mot de passe.');
-        return;
-      }
-      if (emailInvalid) {
-        setErr('Adresse e-mail invalide.');
+      // Validate input with Zod
+      const schema = action === 'register' ? registerSchema : loginSchema;
+      const input = action === 'register'
+        ? { email, password, role: 'PATIENT' as const }
+        : { email, password };
+
+      const result = schema.safeParse(input);
+
+      if (!result.success) {
+        const errors = result.error.flatten().fieldErrors;
+        setValidationErrors({
+          email: errors.email?.[0],
+          password: errors.password?.[0],
+        });
+        setErr('Veuillez corriger les erreurs dans le formulaire.');
         return;
       }
 
-      const body =
-        action === 'register'
-          ? { email, password, role: 'PATIENT' }
-          : { email, password };
+      const body = result.data;
 
       const r = await callApi(
         action === 'register' ? '/auth/register' : '/auth/login',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // Send and receive cookies
           body: JSON.stringify(body),
         },
       );
@@ -79,15 +84,25 @@ export default function LoginPage() {
 
       const d = await r.json();
 
-      if (d?.access_token) {
-        setToken(d.access_token);
-        localStorage.setItem('token', d.access_token);
+      // Gestion spéciale pour l'inscription avec vérification d'email requise
+      if (action === 'register' && d?.requiresVerification) {
+        setToken(null);
+        setErr(null);
+        // Afficher le message de vérification dans un banner au lieu d'une alert
+        setErr(`✅ ${d.message} Veuillez vérifier votre boîte email et cliquer sur le lien de vérification. Le lien est valable pendant 1 heure.`);
+        // Ne pas rediriger, rester sur la page de connexion
+        return;
+      }
+
+      // Cookie is set automatically by backend, no need to store token
+      if (d?.success) {
+        setToken('authenticated'); // Just for UI feedback
         remember
           ? localStorage.setItem('login_email', email)
           : localStorage.removeItem('login_email');
 
-        // update contexte
-        setAuthToken(d.access_token);
+        // Fetch user data from /auth/me endpoint
+        await setAuthToken();
 
         router.replace('/');
       } else {
@@ -124,9 +139,12 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              aria-invalid={emailInvalid}
+              aria-invalid={!!validationErrors.email}
               placeholder="vous@exemple.com"
             />
+            {validationErrors.email && (
+              <span className={styles.errorText}>{validationErrors.email}</span>
+            )}
           </div>
 
           <div className={styles.field}>
@@ -141,6 +159,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                aria-invalid={!!validationErrors.password}
               />
               <button
                 type="button"
@@ -150,6 +169,9 @@ export default function LoginPage() {
                 {showPwd ? 'Masquer' : 'Afficher'}
               </button>
             </div>
+            {validationErrors.password && (
+              <span className={styles.errorText}>{validationErrors.password}</span>
+            )}
           </div>
 
           <div className={styles.rowBetween}>
@@ -191,11 +213,25 @@ export default function LoginPage() {
           <div className={styles.divider}>— ou —</div>
 
           <div className={styles.socialRow}>
-            <button className={styles.secondaryBtn} type="button" disabled>
-              Continuer avec Google (bientôt)
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              onClick={() => {
+                const apiBase = getApiBase() || '';
+                window.location.href = `${apiBase}/auth/google`;
+              }}
+            >
+              🔵 Continuer avec Google
             </button>
-            <button className={styles.secondaryBtn} type="button" disabled>
-              Continuer avec Apple (bientôt)
+            <button
+              className={styles.secondaryBtn}
+              type="button"
+              onClick={() => {
+                const apiBase = getApiBase() || '';
+                window.location.href = `${apiBase}/auth/facebook`;
+              }}
+            >
+              📘 Continuer avec Facebook
             </button>
           </div>
         </div>
