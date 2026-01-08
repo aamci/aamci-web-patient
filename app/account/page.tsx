@@ -17,7 +17,7 @@ function getApiBase(): string | null {
 }
 
 export default function AccountPage() {
-  const { token, updateUser } = useAuth();
+  const { user, updateUser } = useAuth();
   const router = useRouter();
   const apiBase = useMemo(() => getApiBase(), []);
 
@@ -44,15 +44,14 @@ export default function AccountPage() {
   }
 
   async function authedFetch(path: string, init?: RequestInit) {
-    if (!token) throw new Error('Non authentifié');
     const headers: Record<string, string> = { ...(init?.headers as any) };
-    headers['Authorization'] = `Bearer ${token}`;
     if (init?.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
     const r = await fetch(buildUrl(path), {
       ...init,
       headers,
+      credentials: 'include',
       cache: 'no-store',
     });
     if (!r.ok) {
@@ -64,7 +63,7 @@ export default function AccountPage() {
 
   // charger le profil au montage
   useEffect(() => {
-    if (!token) {
+    if (!user) {
       router.replace('/auth/login');
       return;
     }
@@ -90,7 +89,7 @@ export default function AccountPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [user]);
 
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
