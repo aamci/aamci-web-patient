@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../_providers/AuthProvider';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export default function Navbar() {
   const linksForPatient = [
     { href: '/', label: 'Accueil' },
     { href: '/doctors', label: 'Trouver un médecin' },
+    { href: '/favorites', label: 'Favoris' },
     { href: '/facilities', label: 'Établissements' },
     { href: '/appointments', label: 'Mes rendez-vous' },
   ];
@@ -117,7 +119,9 @@ export default function Navbar() {
               Connexion
             </button>
           ) : (
-            <div style={{ position: 'relative' }} ref={dropdownRef}>
+            <>
+              <NotificationBell />
+              <div style={{ position: 'relative' }} ref={dropdownRef}>
               <button
                 onClick={() => setOpen((o) => !o)}
                 style={{
@@ -151,8 +155,8 @@ export default function Navbar() {
                   <DropdownItem onClick={() => { router.push('/account'); setOpen(false); }}>
                     Mon compte
                   </DropdownItem>
-                  <DropdownItem onClick={() => { setOpen(false); }}>
-                    Mes documents (A venir)
+                  <DropdownItem onClick={() => { router.push('/medical-documents'); setOpen(false); }}>
+                    Mes documents
                   </DropdownItem>
                   <div style={{ height: 1, background: '#eee' }} />
                   <DropdownItem
@@ -166,7 +170,8 @@ export default function Navbar() {
                   </DropdownItem>
                 </div>
               )}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>

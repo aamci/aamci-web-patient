@@ -23,6 +23,11 @@ export const registerSchema = z.object({
     .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une majuscule')
     .regex(/[a-z]/, 'Le mot de passe doit contenir au moins une minuscule')
     .regex(/[0-9]/, 'Le mot de passe doit contenir au moins un chiffre'),
+  fullName: z
+    .string()
+    .min(2, 'Le nom doit contenir au moins 2 caractères')
+    .max(100, 'Le nom est trop long')
+    .optional(),
   role: z.enum(['PATIENT', 'DOCTOR', 'PHARMACY', 'HOSPITAL', 'ADMIN']).optional(),
 });
 

@@ -23,14 +23,15 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function getApiBase(): string {
-  return process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  return base;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user from backend on mount (cookie is sent automatically)
+  // Fetch user from backend on mount
   useEffect(() => {
     fetchUser();
   }, []);
@@ -38,8 +39,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = async () => {
     try {
       const apiBase = getApiBase();
-      const res = await fetch(`${apiBase}/auth/me`, {
-        credentials: 'include', // Send cookies with request
+      const url = apiBase ? `${apiBase}/auth/me` : '/api/auth/me';
+
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add Authorization header if token exists
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(url, {
+        credentials: 'include', // Still send cookies as fallback
+        headers,
       });
 
       if (res.ok) {
@@ -47,6 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
       } else {
         setUser(null);
+        // Clear invalid token
+        if (token) {
+          localStorage.removeItem('token');
+        }
       }
     } catch (error) {
       console.error('Failed to fetch user:', error);
@@ -57,17 +77,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async () => {
-    // Refetch user after login (cookie is already set by backend)
+    // Refetch user after login
     await fetchUser();
   };
 
   const logout = async () => {
     try {
       const apiBase = getApiBase();
-      await fetch(`${apiBase}/auth/logout`, {
+      const url = apiBase ? `${apiBase}/auth/logout` : '/api/auth/logout';
+
+      // Get token from localStorage
+      const token = localStorage.getItem('token');
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      await fetch(url, {
         method: 'POST',
-        credentials: 'include', // Send cookies with request
+        credentials: 'include',
+        headers,
       });
+
+      // Clear token from localStorage
+      localStorage.removeItem('token');
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {

@@ -48,6 +48,13 @@ export default function AccountPage() {
     if (init?.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
+
+    // Ajouter le token JWT depuis localStorage pour cross-origin
+    const token = localStorage.getItem('token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const r = await fetch(buildUrl(path), {
       ...init,
       headers,

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import FavoriteButton from '../_components/FavoriteButton';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -85,7 +86,10 @@ export default function DoctorsPage() {
             const hospitalType = prof.hospitalType || '';
 
             return (
-              <div key={d.id} className="card" style={{ display: 'grid', gap: 8 }}>
+              <div key={d.id} className="card" style={{ display: 'grid', gap: 8, position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 12, right: 12 }}>
+                  <FavoriteButton doctorId={d.id} size="sm" />
+                </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                   {d.avatarUrl ? (
                     <img
