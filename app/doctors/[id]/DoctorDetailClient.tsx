@@ -1,0 +1,897 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Heart,
+  MapPin,
+  Phone,
+  Mail,
+  Clock,
+  Award,
+  GraduationCap,
+  Briefcase,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  X,
+  Check,
+  Loader2,
+  Building2,
+  AlertTriangle,
+  User,
+  FileText,
+  MessageSquare,
+} from 'lucide-react';
+import { useAuth } from '@/app/_providers/AuthProvider';
+
+function getApiBase(): string | null {
+  let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+  base = base.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
+  try {
+    return base ? new URL(base).toString().replace(/\/$/, '') : null;
+  } catch {
+    return null;
+  }
+}
+
+type Doctor = {
+  id: string;
+  email?: string;
+  fullName?: string;
+  avatarUrl?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  doctorProfile?: {
+    specialty?: string | null;
+    hospitalType?: string | null;
+    address?: string | null;
+    city?: string | null;
+    presentation?: string | null;
+    formations?: string | null;
+    experiences?: string | null;
+    consultationPrice?: number | null;
+    languages?: string | null;
+  } | null;
+};
+
+type Slot = {
+  id: string;
+  start: string;
+  end: string;
+  status?: string;
+  appointments?: Array<unknown>;
+};
+
+type AppointmentKind = {
+  id: string;
+  label: string;
+  durationMinutes: number;
+  price?: number | null;
+  color?: string | null;
+};
+
+const DAYS_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const apiBase = useMemo(() => getApiBase(), []);
+
+  const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [appointmentKinds, setAppointmentKinds] = useState<AppointmentKind[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  // Week navigation
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'info' | 'slots' | 'reviews'>('slots');
+
+  // Booking modal
+  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [selectedKind, setSelectedKind] = useState<string | null>(null);
+  const [bookingNotes, setBookingNotes] = useState('');
+  const [booking, setBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingSuccess, setBookingSuccess] = useState(false);
+
+  // Load doctor, slots, appointment kinds
+  useEffect(() => {
+    async function loadData() {
+      setLoading(true);
+      try {
+        // Fetch doctor
+        const doctorUrl = apiBase ? `${apiBase}/search/doctors` : '/search/doctors';
+        const doctorRes = await fetch(doctorUrl, { cache: 'no-store' });
+        const doctors = await doctorRes.json().catch(() => []);
+        const found = Array.isArray(doctors) ? doctors.find((d: Doctor) => d.id === doctorId) : null;
+
+        if (found) {
+          setDoctor(found);
+        } else {
+          // Fallback
+          setDoctor({
+            id: doctorId,
+            fullName: 'Dr. Médecin',
+            city: 'Paris',
+            doctorProfile: {
+              specialty: 'Médecine générale',
+              hospitalType: 'Cabinet',
+              address: '123 Rue de la Santé, 75014 Paris',
+              presentation: 'Médecin généraliste expérimenté, à votre écoute pour tous vos besoins de santé.',
+            },
+          });
+        }
+
+        // Fetch slots
+        const slotsUrl = apiBase ? `${apiBase}/slots?ownerId=${doctorId}` : `/slots?ownerId=${doctorId}`;
+        const slotsRes = await fetch(slotsUrl, { cache: 'no-store' });
+        const slotsData = await slotsRes.json().catch(() => []);
+        const slotsList: Slot[] = Array.isArray(slotsData) ? slotsData : slotsData?.data || [];
+
+        // Filter available slots
+        const availableSlots = slotsList.filter((s) => {
+          const taken = Array.isArray(s.appointments) && s.appointments.length > 0;
+          const notActive = s.status && s.status !== 'ACTIVE';
+          const inPast = new Date(s.start) < new Date();
+          return !taken && !notActive && !inPast;
+        });
+        setSlots(availableSlots);
+
+        // Fetch appointment kinds
+        const kindsUrl = apiBase ? `${apiBase}/appointment-kinds?doctorId=${doctorId}` : `/appointment-kinds?doctorId=${doctorId}`;
+        const kindsRes = await fetch(kindsUrl, { cache: 'no-store' });
+        const kindsData = await kindsRes.json().catch(() => []);
+        const kindsList: AppointmentKind[] = Array.isArray(kindsData) ? kindsData : kindsData?.data || [];
+        setAppointmentKinds(kindsList);
+        if (kindsList.length > 0) {
+          setSelectedKind(kindsList[0].id);
+        }
+
+        // Check favorite status
+        if (user) {
+          const token = localStorage.getItem('token');
+          if (token) {
+            const favUrl = apiBase ? `${apiBase}/favorites` : '/favorites';
+            const favRes = await fetch(favUrl, {
+              headers: { Authorization: `Bearer ${token}` },
+              cache: 'no-store',
+            });
+            const favData = await favRes.json().catch(() => []);
+            const favorites = Array.isArray(favData) ? favData : favData?.data || [];
+            setIsFavorite(favorites.some((f: { id: string }) => f.id === doctorId));
+          }
+        }
+      } catch (error) {
+        console.error('Error loading doctor data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [apiBase, doctorId, user]);
+
+  // Get week dates based on offset
+  const weekDates = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay() + 1 + weekOffset * 7); // Monday
+
+    const dates: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      dates.push(date);
+    }
+    return dates;
+  }, [weekOffset]);
+
+  // Group slots by day and hour
+  const slotsGrid = useMemo(() => {
+    const grid: Record<string, Record<string, Slot>> = {};
+    const hoursSet = new Set<string>();
+
+    for (const slot of slots) {
+      const date = new Date(slot.start);
+      const dayKey = date.toISOString().split('T')[0];
+      const hourKey = date.toTimeString().substring(0, 5);
+
+      if (!grid[dayKey]) grid[dayKey] = {};
+      grid[dayKey][hourKey] = slot;
+      hoursSet.add(hourKey);
+    }
+
+    const hours = Array.from(hoursSet).sort();
+    return { grid, hours };
+  }, [slots]);
+
+  // Toggle favorite
+  async function toggleFavorite() {
+    if (!user) {
+      router.push('/auth/login');
+      return;
+    }
+
+    setFavoriteLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const url = apiBase ? `${apiBase}/favorites/${doctorId}` : `/favorites/${doctorId}`;
+
+      if (isFavorite) {
+        await fetch(url, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setIsFavorite(false);
+      } else {
+        await fetch(apiBase ? `${apiBase}/favorites` : '/favorites', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ doctorId }),
+        });
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  }
+
+  // Book appointment
+  async function confirmBooking() {
+    if (!selectedSlot) return;
+
+    setBooking(true);
+    setBookingError(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setBookingError('Veuillez vous connecter pour réserver.');
+        return;
+      }
+
+      const url = apiBase ? `${apiBase}/appointments` : '/appointments';
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          slotId: selectedSlot.id,
+          kindId: selectedKind || undefined,
+          notes: bookingNotes || `RDV avec ${doctor?.fullName || 'le médecin'}`,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || `Erreur ${response.status}`);
+      }
+
+      const data = await response.json();
+      setBookingSuccess(true);
+      setSlots((prev) => prev.filter((s) => s.id !== selectedSlot.id));
+
+      // Redirect after success
+      setTimeout(() => {
+        router.push(`/doctors/${doctorId}/success?aid=${data.id || ''}`);
+      }, 1500);
+    } catch (error: unknown) {
+      setBookingError(error instanceof Error ? error.message : 'Erreur lors de la réservation');
+    } finally {
+      setBooking(false);
+    }
+  }
+
+  function closeModal() {
+    setSelectedSlot(null);
+    setBookingError(null);
+    setBookingSuccess(false);
+    setBookingNotes('');
+  }
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return 'DR';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-teal-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-400">Chargement du profil...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!doctor) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Médecin introuvable</h2>
+          <p className="text-slate-400 mb-4">Ce profil n'existe pas ou a été supprimé.</p>
+          <Link href="/doctors" className="text-teal-400 hover:text-teal-300">
+            Retour à la liste
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const prof = doctor.doctorProfile;
+
+  return (
+    <div className="min-h-screen bg-slate-900">
+      {/* Header */}
+      <div className="bg-slate-800 border-b border-slate-700">
+        <div className="max-w-6xl mx-auto px-4 py-6">
+          {/* Back button */}
+          <Link
+            href="/doctors"
+            className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour à la liste
+          </Link>
+
+          {/* Doctor info */}
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Avatar */}
+            <div className="flex-shrink-0">
+              {doctor.avatarUrl ? (
+                <img
+                  src={doctor.avatarUrl}
+                  alt={doctor.fullName || 'Médecin'}
+                  className="w-32 h-32 rounded-2xl object-cover border-4 border-slate-700"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-2xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center border-4 border-slate-700">
+                  <span className="text-4xl font-bold text-white">
+                    {getInitials(doctor.fullName)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                    {doctor.fullName || 'Dr. Médecin'}
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                    {prof?.specialty && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-600/20 text-teal-400 rounded-full text-sm">
+                        <Award className="w-4 h-4" />
+                        {prof.specialty}
+                      </span>
+                    )}
+                    {prof?.hospitalType && (
+                      <span className="inline-flex items-center gap-1.5 text-sm">
+                        <Building2 className="w-4 h-4" />
+                        {prof.hospitalType}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleFavorite}
+                    disabled={favoriteLoading}
+                    className={`p-3 rounded-xl transition-colors ${
+                      isFavorite
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Contact info */}
+              <div className="flex flex-wrap gap-4 mt-4 text-sm text-slate-400">
+                {(prof?.address || prof?.city || doctor.city) && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-teal-500" />
+                    {prof?.address || prof?.city || doctor.city}
+                  </div>
+                )}
+                {doctor.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-teal-500" />
+                    {doctor.phone}
+                  </div>
+                )}
+                {doctor.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-teal-500" />
+                    {doctor.email}
+                  </div>
+                )}
+              </div>
+
+              {/* Stats */}
+              <div className="flex flex-wrap gap-6 mt-4">
+                {prof?.consultationPrice && (
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-white">{prof.consultationPrice} €</div>
+                    <div className="text-xs text-slate-500">Consultation</div>
+                  </div>
+                )}
+                <div className="text-center">
+                  <div className="text-xl font-bold text-white">{slots.length}</div>
+                  <div className="text-xs text-slate-500">Créneaux dispo.</div>
+                </div>
+                <div className="text-center">
+                  <div className="flex items-center gap-1 text-xl font-bold text-white">
+                    <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+                    4.8
+                  </div>
+                  <div className="text-xs text-slate-500">Note moyenne</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-slate-800/50 border-b border-slate-700 sticky top-16 z-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex gap-1">
+            {[
+              { id: 'slots' as const, label: 'Créneaux', icon: Calendar },
+              { id: 'info' as const, label: 'Informations', icon: FileText },
+              { id: 'reviews' as const, label: 'Avis', icon: MessageSquare },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab.id
+                    ? 'border-teal-500 text-teal-400'
+                    : 'border-transparent text-slate-400 hover:text-white'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Slots Tab */}
+        {activeTab === 'slots' && (
+          <div className="space-y-6">
+            {/* Week navigation */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setWeekOffset((w) => w - 1)}
+                disabled={weekOffset === 0}
+                className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-white">
+                  {weekDates[0].getDate()} - {weekDates[6].getDate()} {MONTHS[weekDates[6].getMonth()]} {weekDates[6].getFullYear()}
+                </h3>
+                <p className="text-sm text-slate-400">
+                  {weekOffset === 0 ? 'Cette semaine' : weekOffset === 1 ? 'Semaine prochaine' : `Dans ${weekOffset} semaines`}
+                </p>
+              </div>
+              <button
+                onClick={() => setWeekOffset((w) => w + 1)}
+                disabled={weekOffset >= 4}
+                className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Appointment type selector */}
+            {appointmentKinds.length > 0 && (
+              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+                <h4 className="text-sm font-medium text-slate-300 mb-3">Type de consultation</h4>
+                <div className="flex flex-wrap gap-2">
+                  {appointmentKinds.map((kind) => (
+                    <button
+                      key={kind.id}
+                      onClick={() => setSelectedKind(kind.id)}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedKind === kind.id
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      }`}
+                    >
+                      {kind.label}
+                      {kind.durationMinutes && (
+                        <span className="ml-2 text-xs opacity-70">{kind.durationMinutes} min</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Slots grid */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px]">
+                  <thead>
+                    <tr className="bg-slate-700/50">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider sticky left-0 bg-slate-700/50">
+                        Heure
+                      </th>
+                      {weekDates.map((date, idx) => {
+                        const isToday = date.toDateString() === new Date().toDateString();
+                        const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+                        return (
+                          <th
+                            key={idx}
+                            className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${
+                              isToday ? 'text-teal-400' : isPast ? 'text-slate-600' : 'text-slate-400'
+                            }`}
+                          >
+                            <div>{DAYS_LABELS[date.getDay()]}</div>
+                            <div className={`text-lg font-bold ${isToday ? 'text-teal-400' : 'text-white'}`}>
+                              {date.getDate()}
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {slotsGrid.hours.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
+                          <Calendar className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+                          <p>Aucun créneau disponible cette semaine</p>
+                          <button
+                            onClick={() => setWeekOffset((w) => w + 1)}
+                            className="mt-3 text-teal-400 hover:text-teal-300"
+                          >
+                            Voir la semaine suivante
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      slotsGrid.hours.map((hour) => (
+                        <tr key={hour} className="border-t border-slate-700/50">
+                          <td className="px-4 py-2 text-sm font-medium text-slate-300 sticky left-0 bg-slate-800">
+                            {hour}
+                          </td>
+                          {weekDates.map((date, idx) => {
+                            const dayKey = date.toISOString().split('T')[0];
+                            const slot = slotsGrid.grid[dayKey]?.[hour];
+                            const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+
+                            return (
+                              <td key={idx} className="px-2 py-2 text-center">
+                                {slot && !isPast ? (
+                                  <button
+                                    onClick={() => setSelectedSlot(slot)}
+                                    className="w-full px-3 py-2 bg-teal-600/20 text-teal-400 rounded-lg text-sm font-medium hover:bg-teal-600 hover:text-white transition-colors"
+                                  >
+                                    Réserver
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-600">—</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Info Tab */}
+        {activeTab === 'info' && (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Presentation */}
+            {prof?.presentation && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 lg:col-span-2">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  <User className="w-5 h-5 text-teal-500" />
+                  Présentation
+                </h3>
+                <p className="text-slate-300 leading-relaxed">{prof.presentation}</p>
+              </div>
+            )}
+
+            {/* Formations */}
+            {prof?.formations && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-teal-500" />
+                  Formations
+                </h3>
+                <p className="text-slate-300 leading-relaxed">{prof.formations}</p>
+              </div>
+            )}
+
+            {/* Experiences */}
+            {prof?.experiences && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-teal-500" />
+                  Expériences
+                </h3>
+                <p className="text-slate-300 leading-relaxed">{prof.experiences}</p>
+              </div>
+            )}
+
+            {/* Languages */}
+            {prof?.languages && (
+              <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-teal-500" />
+                  Langues parlées
+                </h3>
+                <p className="text-slate-300">{prof.languages}</p>
+              </div>
+            )}
+
+            {/* Horaires */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-teal-500" />
+                Horaires d'ouverture
+              </h3>
+              <div className="space-y-2 text-sm">
+                {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'].map((day) => (
+                  <div key={day} className="flex justify-between text-slate-300">
+                    <span>{day}</span>
+                    <span>09:00 - 18:00</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-slate-500">
+                  <span>Samedi</span>
+                  <span>09:00 - 12:00</span>
+                </div>
+                <div className="flex justify-between text-slate-500">
+                  <span>Dimanche</span>
+                  <span>Fermé</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reviews Tab */}
+        {activeTab === 'reviews' && (
+          <div className="space-y-6">
+            {/* Reviews summary */}
+            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+              <div className="flex flex-col md:flex-row md:items-center gap-6">
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-white">4.8</div>
+                  <div className="flex items-center justify-center gap-1 mt-2">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Star
+                        key={i}
+                        className={`w-5 h-5 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="text-sm text-slate-400 mt-1">Basé sur 47 avis</div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  {[5, 4, 3, 2, 1].map((stars) => (
+                    <div key={stars} className="flex items-center gap-3">
+                      <span className="text-sm text-slate-400 w-8">{stars}</span>
+                      <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-400 rounded-full"
+                          style={{ width: stars === 5 ? '70%' : stars === 4 ? '20%' : stars === 3 ? '8%' : '2%' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Sample reviews */}
+            <div className="space-y-4">
+              {[
+                { name: 'Marie L.', rating: 5, date: 'Il y a 2 jours', comment: 'Excellent médecin, très à l\'écoute et professionnel. Je recommande vivement.' },
+                { name: 'Thomas P.', rating: 5, date: 'Il y a 1 semaine', comment: 'Consultation très agréable. Le docteur prend le temps d\'expliquer et de répondre à toutes les questions.' },
+                { name: 'Sophie M.', rating: 4, date: 'Il y a 2 semaines', comment: 'Bon praticien, ponctuel et compétent. Seul bémol : le temps d\'attente pour avoir un rendez-vous.' },
+              ].map((review, idx) => (
+                <div key={idx} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-medium text-white">
+                        {review.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-medium text-white">{review.name}</div>
+                        <div className="text-xs text-slate-400">{review.date}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${i <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-slate-300 text-sm">{review.comment}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Booking Modal */}
+      {selectedSlot && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
+              <h3 className="text-lg font-semibold text-white">Confirmer le rendez-vous</h3>
+              <button
+                onClick={closeModal}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {bookingSuccess ? (
+                <div className="text-center py-6">
+                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Check className="w-8 h-8 text-green-400" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-white mb-2">Rendez-vous confirmé !</h4>
+                  <p className="text-slate-400">Redirection en cours...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Date/time info */}
+                  <div className="bg-slate-700/50 rounded-xl p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-teal-600/20 rounded-xl flex items-center justify-center">
+                        <Calendar className="w-6 h-6 text-teal-400" />
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">
+                          {DAYS_FULL[new Date(selectedSlot.start).getDay()]}{' '}
+                          {new Date(selectedSlot.start).getDate()}{' '}
+                          {MONTHS[new Date(selectedSlot.start).getMonth()]}
+                        </div>
+                        <div className="text-slate-400 text-sm">
+                          {new Date(selectedSlot.start).toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                          {' - '}
+                          {new Date(selectedSlot.end).toLocaleTimeString('fr-FR', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Doctor info */}
+                  <div className="flex items-center gap-3">
+                    {doctor.avatarUrl ? (
+                      <img
+                        src={doctor.avatarUrl}
+                        alt={doctor.fullName || ''}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold text-white">
+                        {getInitials(doctor.fullName)}
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-white font-medium">{doctor.fullName}</div>
+                      <div className="text-slate-400 text-sm">{prof?.specialty}</div>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      Motif de consultation (optionnel)
+                    </label>
+                    <textarea
+                      value={bookingNotes}
+                      onChange={(e) => setBookingNotes(e.target.value)}
+                      placeholder="Décrivez brièvement le motif de votre visite..."
+                      className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:border-teal-500"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Error */}
+                  {bookingError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                      {bookingError}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!bookingSuccess && (
+              <div className="flex gap-3 px-6 py-4 border-t border-slate-700">
+                <button
+                  onClick={closeModal}
+                  disabled={booking}
+                  className="flex-1 px-4 py-3 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={confirmBooking}
+                  disabled={booking}
+                  className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {booking ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Réservation...
+                    </>
+                  ) : (
+                    'Confirmer'
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

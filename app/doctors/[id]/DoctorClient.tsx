@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -128,7 +129,7 @@ export default function DoctorClient({ id }: { id: string }) {
         body: JSON.stringify({
           slotId,
           notes: doctor?.fullName ? `RDV avec ${doctor.fullName}` : 'RDV',
-          // si tu as rendu dynamique le kindId, tu peux l’ajouter ici
+          // si tu as rendu dynamique le kindId, tu peux l'ajouter ici
         }),
       });
       if (!r.ok) {
@@ -146,39 +147,29 @@ export default function DoctorClient({ id }: { id: string }) {
   }
 
   if (!doctor) {
-    return <div style={{ padding: '24px 0' }}>Chargement…</div>;
+    return <div className="py-6">Chargement...</div>;
   }
 
   const prof = doctor.doctorProfile;
 
   return (
-    <div style={{ display: 'grid', gap: 16, padding: '24px 0' }}>
-      <a className="link" href="/doctors">
-        ← Retour à la liste
+    <div className="grid gap-4 py-6">
+      <a className="link inline-flex items-center gap-1" href="/doctors">
+        <ArrowLeft className="w-4 h-4" />
+        Retour à la liste
       </a>
 
       {/* Carte doctor */}
-      <div className="card" style={{ display: 'grid', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div className="card grid gap-2">
+        <div className="flex gap-3 items-center">
           {doctor.avatarUrl ? (
             <img
               src={doctor.avatarUrl}
               alt={doctor.fullName || doctor.email || 'Doctor'}
-              style={{ width: 56, height: 56, borderRadius: '999px', objectFit: 'cover' }}
+              className="w-14 h-14 rounded-full object-cover"
             />
           ) : (
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: '999px',
-                background: '#d1e7ff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-              }}
-            >
+            <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-blue-700">
               {(doctor.fullName || 'Dr')
                 .split(' ')
                 .map((p) => p[0])
@@ -187,19 +178,19 @@ export default function DoctorClient({ id }: { id: string }) {
             </div>
           )}
           <div>
-            <h1 style={{ margin: 0 }}>
+            <h1 className="m-0 text-xl font-bold">
               {doctor.fullName || doctor.email || 'Docteur'}
             </h1>
-            <div className="small" style={{ color: 'var(--muted)' }}>
-              {prof?.specialty || 'Médecin'} • {prof?.city || doctor.city || '—'}{' '}
-              {prof?.hospitalType ? `• ${prof.hospitalType}` : ''}
+            <div className="text-sm text-gray-500">
+              {prof?.specialty || 'Médecin'} {prof?.city || doctor.city || '—'}{' '}
+              {prof?.hospitalType ? `${prof.hospitalType}` : ''}
             </div>
           </div>
         </div>
 
-        {prof?.presentation && <p style={{ marginTop: 4 }}>{prof.presentation}</p>}
+        {prof?.presentation && <p className="mt-1">{prof.presentation}</p>}
 
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
+        <div className="flex gap-5 flex-wrap text-sm">
           {prof?.address && (
             <div>
               <strong>Adresse :</strong> {prof.address}
@@ -239,7 +230,7 @@ export default function DoctorClient({ id }: { id: string }) {
             </div>
           )}
         {err && (
-          <div className="banner error" style={{ marginTop: 12 }}>
+          <div className="banner error mt-3">
             {err}
           </div>
         )}

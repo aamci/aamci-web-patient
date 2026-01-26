@@ -2,7 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
-import { AuthProvider } from "@/app/_providers/AuthProvider"; // ← adapte le chemin si besoin
+import { AuthProvider } from "@/app/_providers/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Plateforme Santé",
@@ -12,12 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body>
-        <Navbar />
+      <body className="min-h-screen bg-gray-50">
         <AuthProvider>
-          <main className="max-w-6xl mx-auto px-4 py-6">
-            {children}
-          </main>
+          <Navbar />
+          <main>{children}</main>
         </AuthProvider>
       </body>
     </html>

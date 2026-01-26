@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { MapPin, Phone, Stethoscope } from 'lucide-react';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -31,7 +32,7 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   CLINIC: 'Clinique',
   CHU: 'CHU',
   POLYCLINIC: 'Polyclinique',
-  CENTER: 'Centre Médical',
+  CENTER: 'Centre Medical',
 };
 
 export default function FacilitiesListClient() {
@@ -84,21 +85,21 @@ export default function FacilitiesListClient() {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16, padding: '24px 0' }}>
-      <h1>Établissements de Santé</h1>
+    <div className="grid gap-4 py-6">
+      <h1>Etablissements de Sante</h1>
 
       <form
         action={onSubmit}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 200px 180px 120px', gap: 10 }}
+        className="grid gap-2.5 md:grid-cols-[1fr_200px_180px_120px]"
       >
-        <input className="input" name="q" placeholder="Nom de l'établissement" defaultValue={q} />
+        <input className="input" name="q" placeholder="Nom de l'etablissement" defaultValue={q} />
         <input className="input" name="city" placeholder="Ville" defaultValue={city} />
         <select className="input" name="type" defaultValue={type}>
           <option value="">Tous les types</option>
           <option value="CHU">CHU</option>
           <option value="CLINIC">Clinique</option>
           <option value="POLYCLINIC">Polyclinique</option>
-          <option value="CENTER">Centre Médical</option>
+          <option value="CENTER">Centre Medical</option>
         </select>
         <button className="btn primary" type="submit">
           Rechercher
@@ -106,13 +107,13 @@ export default function FacilitiesListClient() {
       </form>
 
       {loading ? (
-        <div className="card">Chargement…</div>
+        <div className="card">Chargement...</div>
       ) : (
         <div
-          className="grid"
-          style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
         >
-          {!facilities.length && <div className="card">Aucun établissement trouvé.</div>}
+          {!facilities.length && <div className="card">Aucun etablissement trouve.</div>}
           {facilities.map((facility) => {
             const typeLabel = FACILITY_TYPE_LABELS[facility.type] || facility.type;
             const doctorCount = facility._count?.doctors || 0;
@@ -121,79 +122,45 @@ export default function FacilitiesListClient() {
               <Link
                 key={facility.id}
                 href={`/facilities/${facility.id}`}
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                className="no-underline text-inherit"
               >
                 <div
-                  className="card"
-                  style={{
-                    display: 'grid',
-                    gap: 12,
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '';
-                  }}
+                  className="card grid gap-3 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                  <div className="flex justify-between items-start">
                     <div>
-                      <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                      <h3 className="m-0 text-lg font-semibold">
                         {facility.name}
                       </h3>
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          marginTop: 6,
-                          padding: '4px 10px',
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          backgroundColor: '#e0f2fe',
-                          color: '#0369a1',
-                        }}
-                      >
+                      <span className="inline-block mt-1.5 px-2.5 py-1 rounded text-xs font-medium bg-sky-100 text-sky-700">
                         {typeLabel}
                       </span>
                     </div>
                   </div>
 
                   {facility.description && (
-                    <p style={{ margin: 0, fontSize: 14, color: '#666', lineHeight: 1.5 }}>
+                    <p className="m-0 text-sm text-gray-600 leading-relaxed">
                       {facility.description}
                     </p>
                   )}
 
-                  <div style={{ display: 'grid', gap: 6, fontSize: 14 }}>
+                  <div className="grid gap-1.5 text-sm">
                     {facility.city && (
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ color: '#888' }}>📍</span>
+                      <div className="flex gap-2 items-center">
+                        <MapPin className="w-4 h-4 text-gray-400" />
                         <span>{facility.city}</span>
                       </div>
                     )}
                     {facility.phone && (
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ color: '#888' }}>📞</span>
+                      <div className="flex gap-2 items-center">
+                        <Phone className="w-4 h-4 text-gray-400" />
                         <span>{facility.phone}</span>
                       </div>
                     )}
-                    <div
-                      style={{
-                        display: 'flex',
-                        gap: 8,
-                        alignItems: 'center',
-                        paddingTop: 8,
-                        borderTop: '1px solid #eee',
-                        marginTop: 4,
-                      }}
-                    >
-                      <span style={{ color: '#888' }}>👨‍⚕️</span>
-                      <span style={{ fontWeight: 500, color: '#0369a1' }}>
-                        {doctorCount} médecin{doctorCount > 1 ? 's' : ''}
+                    <div className="flex gap-2 items-center pt-2 border-t border-gray-100 mt-1">
+                      <Stethoscope className="w-4 h-4 text-gray-400" />
+                      <span className="font-medium text-sky-700">
+                        {doctorCount} medecin{doctorCount > 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>

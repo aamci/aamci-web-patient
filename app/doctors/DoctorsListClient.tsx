@@ -1,9 +1,9 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import FavoriteButton from '../_components/FavoriteButton';
+import { Search, MapPin, Loader2 } from 'lucide-react';
+import { DoctorCard, type Doctor } from '@/components/cards';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -22,7 +22,7 @@ export default function DoctorsPage() {
   const city = searchParams.get('city') ?? '';
   const apiBase = useMemo(() => getApiBase(), []);
 
-  const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,94 +52,66 @@ export default function DoctorsPage() {
     if (nxtCity) params.set('city', nxtCity);
 
     const href = `/doctors${params.toString() ? `?${params.toString()}` : ''}`;
-    router.push(href as any); // 👈 cast pour calmer le typage Next
+    router.push(href as any);
   }
 
   return (
-    <div style={{ display: 'grid', gap: 16, padding: '24px 0' }}>
-      <h1>Médecins</h1>
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Médecins</h1>
 
+      {/* Search Form */}
       <form
         action={onSubmit}
-        style={{ display: 'grid', gridTemplateColumns: '1fr 200px 120px', gap: 10 }}
+        className="grid grid-cols-1 sm:grid-cols-[1fr_180px_120px] gap-3 mb-6"
       >
-        <input className="input" name="q" placeholder="Nom / spécialité" defaultValue={q} />
-        <input className="input" name="city" placeholder="Ville" defaultValue={city} />
-        <button className="btn primary" type="submit">
+        <div className="relative">
+          <input
+            name="q"
+            placeholder="Nom / spécialité"
+            defaultValue={q}
+            className="w-full px-4 py-3 pl-11 border border-gray-200 rounded-xl text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        </div>
+        <div className="relative">
+          <input
+            name="city"
+            placeholder="Ville"
+            defaultValue={city}
+            className="w-full px-4 py-3 pl-11 border border-gray-200 rounded-xl text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+          />
+          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        </div>
+        <button
+          type="submit"
+          className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+        >
           Rechercher
         </button>
       </form>
 
+      {/* Results */}
       {loading ? (
-        <div className="card">Chargement…</div>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
       ) : (
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}
-        >
-          {!doctors.length && <div className="card">Aucun résultat pour cette recherche.</div>}
-          {doctors.map((d) => {
-            const prof = d.doctorProfile || {};
-            const fullName = d.fullName || d.email || 'Docteur';
-            const specialty = prof.specialty || 'Médecine générale';
-            const cityName = prof.city || d.city || '—';
-            const hospitalType = prof.hospitalType || '';
-
-            return (
-              <div key={d.id} className="card" style={{ display: 'grid', gap: 8, position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 12, right: 12 }}>
-                  <FavoriteButton doctorId={d.id} size="sm" />
-                </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  {d.avatarUrl ? (
-                    <img
-                      src={d.avatarUrl}
-                      alt={fullName}
-                      style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        background: '#dbeafe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {fullName[0]?.toUpperCase() ?? 'D'}
-                    </div>
-                  )}
-                  <div>
-                    <strong>{fullName}</strong>
-                    <div className="small" style={{ color: 'var(--muted)' }}>
-                      {specialty} • {cityName} {hospitalType ? `• ${hospitalType}` : ''}
-                    </div>
-                  </div>
-                </div>
-
-                {prof.presentation && (
-                  <p style={{ fontSize: 13, margin: '4px 0', color: '#555' }}>
-                    {prof.presentation.length > 110
-                      ? prof.presentation.slice(0, 110) + '…'
-                      : prof.presentation}
-                  </p>
-                )}
-
-                <div className="row" style={{ marginTop: 6, gap: 8 }}>
-                  <Link className="btn outline" href={`/doctors/${d.id}`}>
-                    Voir la fiche
-                  </Link>
-                  <Link className="btn primary" href={`/doctors/${d.id}#slots`}>
-                    Prendre RDV
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {!doctors.length && (
+            <div className="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+              <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Aucun résultat pour cette recherche.</p>
+            </div>
+          )}
+          {doctors.map((doctor) => (
+            <DoctorCard
+              key={doctor.id}
+              doctor={doctor}
+              showFavorite={true}
+              showPresentation={true}
+              presentationMaxLength={100}
+            />
+          ))}
         </div>
       )}
     </div>

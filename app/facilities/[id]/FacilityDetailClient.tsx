@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MapPin, Phone, Mail, Globe, ChevronRight } from 'lucide-react';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -42,7 +43,7 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   CLINIC: 'Clinique',
   CHU: 'CHU',
   POLYCLINIC: 'Polyclinique',
-  CENTER: 'Centre Médical',
+  CENTER: 'Centre Medical',
 };
 
 export default function FacilityDetailClient({ facilityId }: { facilityId: string }) {
@@ -102,15 +103,15 @@ export default function FacilityDetailClient({ facilityId }: { facilityId: strin
   }, [selectedSpecialty, facility]);
 
   if (loading) {
-    return <div className="card" style={{ marginTop: 24 }}>Chargement…</div>;
+    return <div className="card mt-6">Chargement...</div>;
   }
 
   if (!facility) {
     return (
-      <div className="card" style={{ marginTop: 24 }}>
-        <p>Établissement non trouvé.</p>
-        <Link href="/facilities" className="btn primary" style={{ marginTop: 16 }}>
-          Retour à la liste
+      <div className="card mt-6">
+        <p>Etablissement non trouve.</p>
+        <Link href="/facilities" className="btn primary mt-4">
+          Retour a la liste
         </Link>
       </div>
     );
@@ -125,79 +126,68 @@ export default function FacilityDetailClient({ facilityId }: { facilityId: strin
   }
 
   return (
-    <div style={{ display: 'grid', gap: 24, padding: '24px 0' }}>
+    <div className="grid gap-6 py-6">
       {/* Breadcrumb */}
-      <div style={{ fontSize: 14, color: '#666' }}>
-        <Link href="/facilities" style={{ color: '#0369a1', textDecoration: 'none' }}>
-          Établissements
+      <div className="text-sm text-gray-600 flex items-center gap-1">
+        <Link href="/facilities" className="text-sky-700 no-underline hover:underline">
+          Etablissements
         </Link>
-        {' > '}
+        <ChevronRight className="w-4 h-4 text-gray-400" />
         <span>{facility.name}</span>
       </div>
 
       {/* Informations de l'établissement */}
       <div className="card">
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+        <div className="grid gap-4">
+          <div className="flex justify-between items-start">
             <div>
-              <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>{facility.name}</h1>
-              <span
-                style={{
-                  display: 'inline-block',
-                  marginTop: 10,
-                  padding: '6px 14px',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  backgroundColor: '#e0f2fe',
-                  color: '#0369a1',
-                }}
-              >
+              <h1 className="m-0 text-2xl font-bold">{facility.name}</h1>
+              <span className="inline-block mt-2.5 px-3.5 py-1.5 rounded-md text-sm font-semibold bg-sky-100 text-sky-700">
                 {typeLabel}
               </span>
             </div>
           </div>
 
           {facility.description && (
-            <p style={{ margin: 0, fontSize: 16, color: '#444', lineHeight: 1.6 }}>
+            <p className="m-0 text-base text-gray-700 leading-relaxed">
               {facility.description}
             </p>
           )}
 
-          <div style={{ display: 'grid', gap: 12, fontSize: 15 }}>
+          <div className="grid gap-3 text-base">
             {facility.address && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'start' }}>
-                <span style={{ color: '#888', minWidth: 24 }}>📍</span>
+              <div className="flex gap-2.5 items-start">
+                <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div style={{ fontWeight: 500 }}>{facility.address}</div>
-                  {facility.city && <div style={{ color: '#666' }}>{facility.city}</div>}
+                  <div className="font-medium">{facility.address}</div>
+                  {facility.city && <div className="text-gray-600">{facility.city}</div>}
                 </div>
               </div>
             )}
             {facility.phone && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ color: '#888', minWidth: 24 }}>📞</span>
-                <a href={`tel:${facility.phone}`} style={{ color: '#0369a1', textDecoration: 'none' }}>
+              <div className="flex gap-2.5 items-center">
+                <Phone className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <a href={`tel:${facility.phone}`} className="text-sky-700 no-underline hover:underline">
                   {facility.phone}
                 </a>
               </div>
             )}
             {facility.email && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ color: '#888', minWidth: 24 }}>✉️</span>
-                <a href={`mailto:${facility.email}`} style={{ color: '#0369a1', textDecoration: 'none' }}>
+              <div className="flex gap-2.5 items-center">
+                <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <a href={`mailto:${facility.email}`} className="text-sky-700 no-underline hover:underline">
                   {facility.email}
                 </a>
               </div>
             )}
             {facility.website && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <span style={{ color: '#888', minWidth: 24 }}>🌐</span>
+              <div className="flex gap-2.5 items-center">
+                <Globe className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 <a
                   href={facility.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: '#0369a1', textDecoration: 'none' }}
+                  className="text-sky-700 no-underline hover:underline"
                 >
                   {facility.website}
                 </a>
@@ -207,19 +197,12 @@ export default function FacilityDetailClient({ facilityId }: { facilityId: strin
 
           {services.length > 0 && (
             <div>
-              <h3 style={{ margin: '16px 0 10px', fontSize: 16, fontWeight: 600 }}>Services disponibles</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <h3 className="mt-4 mb-2.5 text-base font-semibold">Services disponibles</h3>
+              <div className="flex flex-wrap gap-2">
                 {services.map((service, index) => (
                   <span
                     key={index}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 20,
-                      fontSize: 13,
-                      backgroundColor: '#f0f9ff',
-                      color: '#0369a1',
-                      border: '1px solid #bae6fd',
-                    }}
+                    className="px-3 py-1.5 rounded-full text-sm bg-sky-50 text-sky-700 border border-sky-200"
                   >
                     {service}
                   </span>
@@ -232,19 +215,18 @@ export default function FacilityDetailClient({ facilityId }: { facilityId: strin
 
       {/* Liste des médecins */}
       <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
-            Médecins ({filteredDoctors.length})
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="m-0 text-xl font-bold">
+            Medecins ({filteredDoctors.length})
           </h2>
 
           {specialties.length > 0 && (
             <select
-              className="input"
-              style={{ maxWidth: 250 }}
+              className="input max-w-[250px]"
               value={selectedSpecialty}
               onChange={(e) => setSelectedSpecialty(e.target.value)}
             >
-              <option value="">Toutes les spécialités</option>
+              <option value="">Toutes les specialites</option>
               {specialties.map((spec) => (
                 <option key={spec} value={spec}>
                   {spec}
@@ -255,71 +237,42 @@ export default function FacilityDetailClient({ facilityId }: { facilityId: strin
         </div>
 
         <div
-          className="grid"
-          style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 16 }}
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
         >
           {!filteredDoctors.length && (
             <div className="card">
               {selectedSpecialty
-                ? `Aucun médecin trouvé pour la spécialité "${selectedSpecialty}".`
-                : 'Aucun médecin associé à cet établissement.'}
+                ? `Aucun medecin trouve pour la specialite "${selectedSpecialty}".`
+                : 'Aucun medecin associe a cet etablissement.'}
             </div>
           )}
           {filteredDoctors.map((doctor) => {
             const fullName = doctor.user.fullName || 'Docteur';
-            const specialty = doctor.specialty || 'Médecine générale';
+            const specialty = doctor.specialty || 'Medecine generale';
 
             return (
               <Link
                 key={doctor.id}
                 href={`/doctors/${doctor.user.id}`}
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                className="no-underline text-inherit"
               >
-                <div
-                  className="card"
-                  style={{
-                    display: 'grid',
-                    gap: 10,
-                    cursor: 'pointer',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '';
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div className="card grid gap-2.5 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+                  <div className="flex gap-3 items-center">
                     {doctor.user.avatarUrl ? (
                       <img
                         src={doctor.user.avatarUrl}
                         alt={fullName}
-                        style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }}
+                        className="w-14 h-14 rounded-full object-cover"
                       />
                     ) : (
-                      <div
-                        style={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: '50%',
-                          backgroundColor: '#e0f2fe',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 20,
-                          fontWeight: 600,
-                          color: '#0369a1',
-                        }}
-                      >
+                      <div className="w-14 h-14 rounded-full bg-sky-100 flex items-center justify-center text-xl font-semibold text-sky-700">
                         {fullName.charAt(0).toUpperCase()}
                       </div>
                     )}
                     <div>
-                      <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{fullName}</h4>
-                      <p style={{ margin: '4px 0 0', fontSize: 14, color: '#666' }}>{specialty}</p>
+                      <h4 className="m-0 text-base font-semibold">{fullName}</h4>
+                      <p className="m-0 mt-1 text-sm text-gray-600">{specialty}</p>
                     </div>
                   </div>
                 </div>

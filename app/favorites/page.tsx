@@ -3,22 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { HeartOff, Loader2 } from 'lucide-react';
+import { DoctorCard, type Doctor } from '@/components/cards';
 
 interface FavoriteDoctor {
   id: string;
   addedAt: string;
-  doctor: {
-    id: string;
-    fullName: string;
-    avatarUrl: string | null;
-    email: string;
+  doctor: Doctor & {
     phone: string | null;
-    doctorProfile: {
-      specialty: string | null;
-      city: string | null;
-      address: string | null;
-      presentation: string | null;
-    } | null;
   };
 }
 
@@ -93,151 +85,56 @@ export default function FavoritesPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '24px 0' }}>
-        <h1>Mes Médecins Favoris</h1>
-        <div className="card" style={{ marginTop: 16 }}>Chargement...</div>
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Mes Médecins Favoris</h1>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px 0', display: 'grid', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Mes Médecins Favoris</h1>
-        <span style={{ color: '#6b7280', fontSize: 14 }}>
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Mes Médecins Favoris</h1>
+        <span className="text-gray-500 text-sm">
           {favorites.length} médecin{favorites.length !== 1 ? 's' : ''}
         </span>
       </div>
 
       {favorites.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>💔</div>
-          <h3 style={{ margin: 0, marginBottom: 8 }}>Aucun médecin favori</h3>
-          <p style={{ color: '#6b7280', margin: 0, marginBottom: 16 }}>
+        <div className="text-center py-16 px-6 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+          <HeartOff className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun médecin favori</h3>
+          <p className="text-gray-500 mb-6">
             Ajoutez des médecins à vos favoris pour les retrouver facilement
           </p>
-          <Link href="/doctors" className="btn primary">
+          <Link
+            href="/doctors"
+            className="inline-flex px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
             Rechercher des médecins
           </Link>
         </div>
       ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: 16,
-          }}
-        >
-          {favorites.map((fav) => {
-            const d = fav.doctor;
-            const prof = d.doctorProfile;
-            const fullName = d.fullName || d.email || 'Docteur';
-            const specialty = prof?.specialty || 'Médecine générale';
-            const cityName = prof?.city || '—';
-
-            return (
-              <div
-                key={fav.id}
-                className="card"
-                style={{ display: 'grid', gap: 12, position: 'relative' }}
-              >
-                {/* Header avec avatar et info */}
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  {d.avatarUrl ? (
-                    <img
-                      src={d.avatarUrl}
-                      alt={fullName}
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 600,
-                        color: 'white',
-                        fontSize: 20,
-                      }}
-                    >
-                      {fullName[0]?.toUpperCase() ?? 'D'}
-                    </div>
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <strong style={{ fontSize: 16 }}>{fullName}</strong>
-                    <div style={{ color: '#3b82f6', fontSize: 13, marginTop: 2 }}>
-                      {specialty}
-                    </div>
-                    <div style={{ color: '#6b7280', fontSize: 13, marginTop: 2 }}>
-                      📍 {cityName}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => removeFavorite(d.id)}
-                    disabled={removing === d.id}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: removing === d.id ? 'not-allowed' : 'pointer',
-                      fontSize: 20,
-                      opacity: removing === d.id ? 0.5 : 1,
-                      padding: 4,
-                    }}
-                    title="Retirer des favoris"
-                  >
-                    ❤️
-                  </button>
-                </div>
-
-                {/* Présentation */}
-                {prof?.presentation && (
-                  <p style={{ fontSize: 13, margin: 0, color: '#555', lineHeight: 1.5 }}>
-                    {prof.presentation.length > 150
-                      ? prof.presentation.slice(0, 150) + '…'
-                      : prof.presentation}
-                  </p>
-                )}
-
-                {/* Contact info */}
-                <div style={{ fontSize: 13, color: '#6b7280' }}>
-                  {d.phone && <div>📞 {d.phone}</div>}
-                  {prof?.address && <div>📍 {prof.address}</div>}
-                </div>
-
-                {/* Date d'ajout */}
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>
-                  Ajouté le {new Date(fav.addedAt).toLocaleDateString('fr-FR')}
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                  <Link
-                    href={`/doctors/${d.id}`}
-                    className="btn outline"
-                    style={{ flex: 1, textAlign: 'center' }}
-                  >
-                    Voir la fiche
-                  </Link>
-                  <Link
-                    href={`/doctors/${d.id}#slots`}
-                    className="btn primary"
-                    style={{ flex: 1, textAlign: 'center' }}
-                  >
-                    Prendre RDV
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {favorites.map((fav) => (
+            <DoctorCard
+              key={fav.id}
+              doctor={fav.doctor}
+              showFavorite={true}
+              showPhone={true}
+              showAddress={true}
+              showPresentation={true}
+              presentationMaxLength={150}
+              onRemoveFavorite={() => removeFavorite(fav.doctor.id)}
+              isRemovingFavorite={removing === fav.doctor.id}
+              footer={
+                <>Ajouté le {new Date(fav.addedAt).toLocaleDateString('fr-FR')}</>
+              }
+            />
+          ))}
         </div>
       )}
     </div>

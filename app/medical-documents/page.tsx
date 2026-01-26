@@ -2,6 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Pill,
+  FlaskConical,
+  Camera,
+  ClipboardList,
+  Syringe,
+  FileText,
+  Shield,
+  FolderOpen,
+  X,
+  Upload,
+  Eye,
+  Trash2,
+  Lock,
+  Users,
+  Loader2,
+} from 'lucide-react';
 
 interface MedicalDocument {
   id: string;
@@ -36,15 +53,15 @@ const CATEGORY_LABELS: Record<string, string> = {
   OTHER: 'Autre',
 };
 
-const CATEGORY_ICONS: Record<string, string> = {
-  PRESCRIPTION: '💊',
-  LAB_RESULT: '🔬',
-  IMAGING: '📷',
-  MEDICAL_REPORT: '📋',
-  VACCINATION: '💉',
-  CERTIFICATE: '📜',
-  INSURANCE: '🛡️',
-  OTHER: '📁',
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+  PRESCRIPTION: <Pill className="w-6 h-6" />,
+  LAB_RESULT: <FlaskConical className="w-6 h-6" />,
+  IMAGING: <Camera className="w-6 h-6" />,
+  MEDICAL_REPORT: <ClipboardList className="w-6 h-6" />,
+  VACCINATION: <Syringe className="w-6 h-6" />,
+  CERTIFICATE: <FileText className="w-6 h-6" />,
+  INSURANCE: <Shield className="w-6 h-6" />,
+  OTHER: <FolderOpen className="w-6 h-6" />,
 };
 
 function getApiBase(): string {
@@ -135,61 +152,57 @@ export default function MedicalDocumentsPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '24px 0' }}>
-        <h1>Mes Documents Médicaux</h1>
-        <div className="card" style={{ marginTop: 16 }}>Chargement...</div>
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Mes Documents Médicaux</h1>
+        <div className="bg-white rounded-xl border border-gray-200 p-6 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-600 mr-2" />
+          <span className="text-gray-600">Chargement...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '24px 0', display: 'grid', gap: 20 }}>
+    <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Mes Documents Médicaux</h1>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">Mes Documents Médicaux</h1>
         <button
-          className="btn primary"
           onClick={() => setShowUploadModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
         >
-          + Ajouter un document
+          <Upload className="w-4 h-4" />
+          Ajouter un document
         </button>
       </div>
 
       {/* Statistiques */}
       {stats && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#3b82f6' }}>
-              {stats.totalDocuments}
-            </div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>Documents</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+            <div className="text-3xl font-bold text-blue-600">{stats.totalDocuments}</div>
+            <div className="text-sm text-gray-500 mt-1">Documents</div>
           </div>
-          <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#10b981' }}>
-              {formatFileSize(stats.totalSizeBytes)}
-            </div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>Espace utilisé</div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+            <div className="text-3xl font-bold text-green-600">{formatFileSize(stats.totalSizeBytes)}</div>
+            <div className="text-sm text-gray-500 mt-1">Espace utilisé</div>
           </div>
-          <div className="card" style={{ textAlign: 'center', padding: 16 }}>
-            <div style={{ fontSize: 32, fontWeight: 700, color: '#f59e0b' }}>
-              {Object.keys(stats.byCategory).length}
-            </div>
-            <div style={{ fontSize: 13, color: '#6b7280' }}>Catégories</div>
+          <div className="bg-white rounded-xl border border-gray-200 p-5 text-center">
+            <div className="text-3xl font-bold text-amber-600">{Object.keys(stats.byCategory).length}</div>
+            <div className="text-sm text-gray-500 mt-1">Catégories</div>
           </div>
         </div>
       )}
 
       {/* Filtres par catégorie */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="flex flex-wrap gap-2">
         <button
-          className={`btn ${!selectedCategory ? 'primary' : 'outline'}`}
           onClick={() => setSelectedCategory(null)}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            !selectedCategory
+              ? 'bg-blue-600 text-white'
+              : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+          }`}
         >
           Tous ({documents.length})
         </button>
@@ -199,10 +212,15 @@ export default function MedicalDocumentsPage() {
           return (
             <button
               key={key}
-              className={`btn ${selectedCategory === key ? 'primary' : 'outline'}`}
               onClick={() => setSelectedCategory(key)}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedCategory === key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
             >
-              {CATEGORY_ICONS[key]} {label} ({count})
+              {CATEGORY_ICONS[key]}
+              {label} ({count})
             </button>
           );
         })}
@@ -210,91 +228,79 @@ export default function MedicalDocumentsPage() {
 
       {/* Liste des documents */}
       {filteredDocuments.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
-          <h3 style={{ margin: 0, marginBottom: 8 }}>Aucun document</h3>
-          <p style={{ color: '#6b7280', margin: 0, marginBottom: 16 }}>
+        <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
+          <FolderOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun document</h3>
+          <p className="text-gray-500 mb-4">
             Commencez à ajouter vos documents médicaux pour les conserver en toute sécurité
           </p>
-          <button className="btn primary" onClick={() => setShowUploadModal(true)}>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
             Ajouter mon premier document
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="space-y-3">
           {filteredDocuments.map((doc) => (
             <div
               key={doc.id}
-              className="card"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '50px 1fr auto',
-                gap: 16,
-                alignItems: 'center',
-                padding: '16px 20px',
-              }}
+              className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center gap-4"
             >
               {/* Icône */}
-              <div
-                style={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: 8,
-                  background: '#f3f4f6',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 24,
-                }}
-              >
-                {CATEGORY_ICONS[doc.category] || '📁'}
+              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 flex-shrink-0">
+                {CATEGORY_ICONS[doc.category] || <FolderOpen className="w-6 h-6" />}
               </div>
 
               {/* Info */}
-              <div>
-                <div style={{ fontWeight: 600 }}>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-gray-900 truncate">
                   {doc.title || doc.fileName}
                 </div>
-                <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>
+                <div className="text-sm text-gray-500 mt-0.5">
                   {CATEGORY_LABELS[doc.category]} • {formatFileSize(doc.fileSize)}
                   {doc.documentDate && (
                     <> • {new Date(doc.documentDate).toLocaleDateString('fr-FR')}</>
                   )}
                 </div>
                 {doc.description && (
-                  <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 4 }}>
+                  <div className="text-sm text-gray-400 mt-1 truncate">
                     {doc.description}
                   </div>
                 )}
-                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
-                  Ajouté le {new Date(doc.createdAt).toLocaleDateString('fr-FR')}
+                <div className="text-xs text-gray-400 mt-1 flex flex-wrap items-center gap-2">
+                  <span>Ajouté le {new Date(doc.createdAt).toLocaleDateString('fr-FR')}</span>
                   {doc.isPrivate && (
-                    <span style={{ marginLeft: 8, color: '#f59e0b' }}>🔒 Privé</span>
+                    <span className="inline-flex items-center gap-1 text-amber-600">
+                      <Lock className="w-3 h-3" /> Privé
+                    </span>
                   )}
                   {doc.sharedWith.length > 0 && (
-                    <span style={{ marginLeft: 8, color: '#3b82f6' }}>
-                      👥 Partagé ({doc.sharedWith.length})
+                    <span className="inline-flex items-center gap-1 text-blue-600">
+                      <Users className="w-3 h-3" /> Partagé ({doc.sharedWith.length})
                     </span>
                   )}
                 </div>
               </div>
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <a
                   href={doc.fileUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn outline"
-                  style={{ fontSize: 12, padding: '6px 12px' }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
+                  <Eye className="w-4 h-4" />
                   Voir
                 </a>
                 <button
-                  className="btn outline"
-                  style={{ fontSize: 12, padding: '6px 12px', color: '#ef4444' }}
                   onClick={() => deleteDocument(doc.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                 >
+                  <Trash2 className="w-4 h-4" />
                   Supprimer
                 </button>
               </div>
@@ -385,83 +391,76 @@ function UploadModal({
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: 500,
-          maxHeight: '90vh',
-          overflow: 'auto',
-          padding: 24,
-        }}
+        className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ margin: 0, marginBottom: 20 }}>Ajouter un document</h2>
+        <div className="flex items-center justify-between p-5 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Ajouter un document</h2>
+          <button
+            onClick={onClose}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 16 }}>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               URL du fichier *
             </label>
             <input
               type="url"
-              className="input"
               value={fileUrl}
               onChange={(e) => setFileUrl(e.target.value)}
               placeholder="https://example.com/document.pdf"
               required
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors"
             />
-            <small style={{ color: '#6b7280' }}>
+            <p className="text-xs text-gray-500 mt-1">
               Uploadez votre fichier sur un service cloud et collez le lien ici
-            </small>
+            </p>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Nom du fichier *
             </label>
             <input
               type="text"
-              className="input"
               value={fileName}
               onChange={(e) => setFileName(e.target.value)}
               placeholder="ordonnance-2024.pdf"
               required
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Titre (optionnel)
             </label>
             <input
               type="text"
-              className="input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ordonnance Dr. Martin"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Catégorie
             </label>
             <select
-              className="input"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors bg-white"
             >
               {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                 <option key={key} value={key}>
@@ -472,44 +471,54 @@ function UploadModal({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Date du document
             </label>
             <input
               type="date"
-              className="input"
               value={documentDate}
               onChange={(e) => setDocumentDate(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, marginBottom: 4 }}>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Description (optionnel)
             </label>
             <textarea
-              className="input"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Notes supplémentaires..."
               rows={3}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-colors resize-none"
             />
           </div>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={isPrivate}
               onChange={(e) => setIsPrivate(e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
-            <span>Document privé (non visible par les médecins)</span>
+            <span className="text-sm text-gray-700">Document privé (non visible par les médecins)</span>
           </label>
 
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-            <button type="button" className="btn outline" onClick={onClose}>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
               Annuler
             </button>
-            <button type="submit" className="btn primary" disabled={loading}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
               {loading ? 'Ajout...' : 'Ajouter'}
             </button>
           </div>
