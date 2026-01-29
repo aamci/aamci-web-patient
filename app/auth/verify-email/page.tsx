@@ -3,6 +3,14 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../_providers/AuthProvider';
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Mail,
+  ArrowLeft,
+  Send,
+} from 'lucide-react';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -39,7 +47,7 @@ function VerifyEmailContent() {
       try {
         const res = await fetch(url, {
           method: 'GET',
-          credentials: 'include', // Important pour les cookies
+          credentials: 'include',
         });
 
         const data = await res.json();
@@ -69,98 +77,57 @@ function VerifyEmailContent() {
   }, [token, router, login]);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        padding: '24px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      }}
-    >
-      <div
-        className="card"
-        style={{
-          maxWidth: 500,
-          textAlign: 'center',
-          padding: '40px',
-          background: 'white',
-          borderRadius: '16px',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        }}
-      >
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 max-w-md w-full">
         {status === 'loading' && (
-          <>
-            <div
-              style={{
-                fontSize: 48,
-                marginBottom: 20,
-                animation: 'spin 2s linear infinite',
-              }}
-            >
-              ⏳
+          <div className="text-center">
+            <div className="w-20 h-20 bg-teal-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Loader2 className="w-10 h-10 text-teal-400 animate-spin" />
             </div>
-            <h2 style={{ margin: '0 0 16px', fontSize: 24, color: '#333' }}>
+            <h2 className="text-xl font-semibold text-white mb-2">
               Vérification en cours...
             </h2>
-            <p style={{ margin: 0, color: '#666', lineHeight: 1.6 }}>
-              {message}
-            </p>
-          </>
+            <p className="text-slate-400">{message}</p>
+          </div>
         )}
 
         {status === 'success' && (
-          <>
-            <div style={{ fontSize: 64, marginBottom: 20 }}>✅</div>
-            <h2 style={{ margin: '0 0 16px', fontSize: 24, color: '#10b981' }}>
+          <div className="text-center">
+            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-green-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-green-400 mb-2">
               Email vérifié !
             </h2>
-            <p style={{ margin: 0, color: '#666', lineHeight: 1.6 }}>
-              {message}
-            </p>
-            <p style={{ marginTop: 16, color: '#999', fontSize: 14 }}>
+            <p className="text-slate-400 mb-4">{message}</p>
+            <p className="text-sm text-slate-500">
               Redirection vers l'accueil...
             </p>
-          </>
+          </div>
         )}
 
         {status === 'error' && (
-          <>
-            <div style={{ fontSize: 64, marginBottom: 20 }}>❌</div>
-            <h2 style={{ margin: '0 0 16px', fontSize: 24, color: '#ef4444' }}>
+          <div className="text-center">
+            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <XCircle className="w-10 h-10 text-red-400" />
+            </div>
+            <h2 className="text-xl font-semibold text-red-400 mb-2">
               Erreur de vérification
             </h2>
-            <p style={{ margin: '0 0 24px', color: '#666', lineHeight: 1.6 }}>
-              {message}
-            </p>
+            <p className="text-slate-400 mb-6">{message}</p>
 
-            {message.includes('expired') && (
-              <ResendVerificationForm />
-            )}
+            {message.includes('expired') && <ResendVerificationForm />}
 
             <button
               onClick={() => router.push('/auth/login')}
-              className="btn primary"
-              style={{ marginTop: 16 }}
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 transition-colors"
             >
+              <ArrowLeft className="w-4 h-4" />
               Retour à la connexion
             </button>
-          </>
+          </div>
         )}
       </div>
-
-      <style jsx>{`
-        @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -169,18 +136,12 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          }}
-        >
-          <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-            <div style={{ fontSize: 48, marginBottom: 20 }}>⏳</div>
-            <h2>Chargement...</h2>
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-8 max-w-md w-full text-center">
+            <div className="w-20 h-20 bg-teal-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Loader2 className="w-10 h-10 text-teal-400 animate-spin" />
+            </div>
+            <h2 className="text-xl font-semibold text-white">Chargement...</h2>
           </div>
         </div>
       }
@@ -193,12 +154,12 @@ export default function VerifyEmailPage() {
 function ResendVerificationForm() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleResend = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage(null);
 
     const apiBase = getApiBase();
     const url = apiBase
@@ -215,47 +176,75 @@ function ResendVerificationForm() {
       const data = await res.json();
 
       if (res.ok) {
-        setMessage('✅ Email de vérification envoyé ! Vérifiez votre boîte de réception.');
+        setMessage({
+          type: 'success',
+          text: 'Email de vérification envoyé ! Vérifiez votre boîte de réception.',
+        });
       } else {
-        setMessage(`❌ ${data.message || 'Erreur lors de l\'envoi'}`);
+        setMessage({
+          type: 'error',
+          text: data.message || 'Erreur lors de l\'envoi',
+        });
       }
     } catch (error) {
-      setMessage('❌ Erreur de connexion au serveur');
+      setMessage({
+        type: 'error',
+        text: 'Erreur de connexion au serveur',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        marginTop: 24,
-        padding: 20,
-        background: '#f9fafb',
-        borderRadius: 8,
-        border: '1px solid #e5e7eb',
-      }}
-    >
-      <h3 style={{ margin: '0 0 16px', fontSize: 16, color: '#374151' }}>
+    <div className="mt-6 p-4 bg-slate-700/50 rounded-xl border border-slate-600">
+      <h3 className="text-sm font-medium text-white mb-4">
         Renvoyer l'email de vérification
       </h3>
-      <form onSubmit={handleResend} style={{ display: 'grid', gap: 12 }}>
-        <input
-          type="email"
-          placeholder="Votre email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="input"
-          style={{ width: '100%' }}
-        />
-        <button type="submit" disabled={loading} className="btn primary">
-          {loading ? 'Envoi...' : 'Renvoyer l\'email'}
+      <form onSubmit={handleResend} className="space-y-3">
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+          <input
+            type="email"
+            placeholder="Votre email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-500 transition-colors disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Envoi...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4" />
+              Renvoyer l'email
+            </>
+          )}
         </button>
         {message && (
-          <p style={{ margin: 0, fontSize: 14, textAlign: 'center' }}>
-            {message}
-          </p>
+          <div
+            className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+              message.type === 'success'
+                ? 'bg-green-500/10 text-green-400 border border-green-500/30'
+                : 'bg-red-500/10 text-red-400 border border-red-500/30'
+            }`}
+          >
+            {message.type === 'success' ? (
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <XCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            {message.text}
+          </div>
         )}
       </form>
     </div>

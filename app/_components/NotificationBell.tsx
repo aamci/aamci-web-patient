@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../_providers/AuthProvider';
+import {
+  Bell,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Megaphone,
+  Loader2,
+} from 'lucide-react';
 
 interface Notification {
   id: string;
@@ -129,7 +137,7 @@ export default function NotificationBell() {
   useEffect(() => {
     if (user) {
       fetchUnreadCount();
-      const interval = setInterval(fetchUnreadCount, 30000); // Refresh toutes les 30s
+      const interval = setInterval(fetchUnreadCount, 30000);
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -150,15 +158,15 @@ export default function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'APPOINTMENT_REMINDER':
-        return '🔔';
+        return <Bell className="w-4 h-4 text-teal-400" />;
       case 'APPOINTMENT_CONFIRMED':
-        return '✅';
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
       case 'APPOINTMENT_CANCELLED':
-        return '❌';
+        return <XCircle className="w-4 h-4 text-red-400" />;
       case 'APPOINTMENT_RESCHEDULED':
-        return '🔄';
+        return <RefreshCw className="w-4 h-4 text-amber-400" />;
       default:
-        return '📢';
+        return <Megaphone className="w-4 h-4 text-slate-400" />;
     }
   };
 
@@ -187,84 +195,28 @@ export default function NotificationBell() {
   };
 
   return (
-    <div style={{ position: 'relative' }} ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={handleBellClick}
-        style={{
-          position: 'relative',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '6px 8px',
-          borderRadius: 6,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
         aria-label="Notifications"
       >
-        <span style={{ fontSize: 20 }}>🔔</span>
+        <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 2,
-              right: 2,
-              background: '#dc2626',
-              color: '#fff',
-              borderRadius: '999px',
-              fontSize: 10,
-              fontWeight: 600,
-              minWidth: 16,
-              height: 16,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-            }}
-          >
+          <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: '110%',
-            background: '#fff',
-            border: '1px solid rgba(0,0,0,0.05)',
-            borderRadius: 8,
-            width: 360,
-            maxHeight: 500,
-            boxShadow: '0 10px 28px rgba(15,23,42,0.12)',
-            overflow: 'hidden',
-            zIndex: 50,
-          }}
-        >
+        <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-xl w-80 max-h-[480px] shadow-xl overflow-hidden z-50">
           {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              borderBottom: '1px solid #eee',
-            }}
-          >
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+            <h3 className="text-sm font-semibold text-white">
               Notifications
               {unreadCount > 0 && (
-                <span
-                  style={{
-                    marginLeft: 8,
-                    fontSize: 12,
-                    color: '#666',
-                    fontWeight: 400,
-                  }}
-                >
+                <span className="ml-2 text-xs font-normal text-slate-400">
                   ({unreadCount} non lues)
                 </span>
               )}
@@ -272,14 +224,7 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#0f62fe',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
+                className="text-xs text-teal-400 hover:text-teal-300 transition-colors"
               >
                 Tout marquer comme lu
               </button>
@@ -287,33 +232,15 @@ export default function NotificationBell() {
           </div>
 
           {/* Content */}
-          <div
-            style={{
-              maxHeight: 420,
-              overflowY: 'auto',
-            }}
-          >
+          <div className="max-h-[400px] overflow-y-auto">
             {loading ? (
-              <div
-                style={{
-                  padding: '40px 20px',
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: 13,
-                }}
-              >
-                Chargement...
+              <div className="flex items-center justify-center py-10 text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
               </div>
             ) : notifications.length === 0 ? (
-              <div
-                style={{
-                  padding: '40px 20px',
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: 13,
-                }}
-              >
-                Aucune notification
+              <div className="py-10 text-center text-slate-400">
+                <Bell className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                <p className="text-sm">Aucune notification</p>
               </div>
             ) : (
               notifications.map((notification) => (
@@ -324,81 +251,29 @@ export default function NotificationBell() {
                       markAsRead(notification.id);
                     }
                   }}
-                  style={{
-                    padding: '12px 16px',
-                    borderBottom: '1px solid #f5f5f5',
-                    cursor: 'pointer',
-                    background: notification.read ? '#fff' : '#f0f9ff',
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = notification.read
-                      ? '#f9fafb'
-                      : '#e0f2fe';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = notification.read
-                      ? '#fff'
-                      : '#f0f9ff';
-                  }}
+                  className={`px-4 py-3 border-b border-slate-700/50 cursor-pointer transition-colors ${
+                    notification.read
+                      ? 'bg-transparent hover:bg-slate-700/50'
+                      : 'bg-teal-500/10 hover:bg-teal-500/20'
+                  }`}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 10,
-                    }}
-                  >
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
                       {getNotificationIcon(notification.type)}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: 4,
-                        }}
-                      >
-                        <h4
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            margin: 0,
-                            color: '#111',
-                          }}
-                        >
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-sm font-medium text-white truncate">
                           {notification.title}
                         </h4>
                         {!notification.read && (
-                          <span
-                            style={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: '999px',
-                              background: '#0f62fe',
-                              flexShrink: 0,
-                            }}
-                          />
+                          <span className="w-2 h-2 bg-teal-500 rounded-full flex-shrink-0 ml-2" />
                         )}
                       </div>
-                      <p
-                        style={{
-                          fontSize: 12,
-                          color: '#666',
-                          margin: '0 0 6px 0',
-                          lineHeight: 1.4,
-                        }}
-                      >
+                      <p className="text-xs text-slate-400 line-clamp-2">
                         {notification.message}
                       </p>
-                      <span
-                        style={{
-                          fontSize: 11,
-                          color: '#999',
-                        }}
-                      >
+                      <span className="text-xs text-slate-500 mt-1 block">
                         {formatDate(notification.createdAt)}
                       </span>
                     </div>

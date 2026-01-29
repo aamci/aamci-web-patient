@@ -3,6 +3,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../_providers/AuthProvider';
+import {
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Lock,
+  Eye,
+  EyeOff,
+  Camera,
+  Shield,
+  Bell,
+  CreditCard,
+  LogOut,
+  Check,
+  AlertTriangle,
+  Loader2,
+  ChevronRight,
+  Settings,
+  Heart,
+  FileText,
+} from 'lucide-react';
 
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -16,45 +38,62 @@ function getApiBase(): string | null {
   }
 }
 
+type TabId = 'profile' | 'security' | 'notifications' | 'billing';
+
+const tabs: { id: TabId; label: string; icon: typeof User }[] = [
+  { id: 'profile', label: 'Profil', icon: User },
+  { id: 'security', label: 'Sécurité', icon: Shield },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'billing', label: 'Facturation', icon: CreditCard },
+];
+
 export default function AccountPage() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const router = useRouter();
   const apiBase = useMemo(() => getApiBase(), []);
 
+  const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
-  // champs du profil
+  // Profile fields
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [phone, setPhone] = useState('');
   const [sex, setSex] = useState<'MALE' | 'FEMALE' | 'OTHER' | ''>('');
-  const [birthdate, setBirthdate] = useState(''); // yyyy-mm-dd
+  const [birthdate, setBirthdate] = useState('');
   const [city, setCity] = useState('');
 
-  // champs mot de passe
+  // Password fields
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  // Notification preferences
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [smsNotifs, setSmsNotifs] = useState(false);
+  const [reminderNotifs, setReminderNotifs] = useState(true);
+  const [marketingNotifs, setMarketingNotifs] = useState(false);
 
   function buildUrl(path: string) {
     return apiBase ? `${apiBase}${path}` : `/api-proxy${path}`;
   }
 
   async function authedFetch(path: string, init?: RequestInit) {
-    const headers: Record<string, string> = { ...(init?.headers as any) };
+    const headers: Record<string, string> = { ...(init?.headers as Record<string, string>) };
     if (init?.body && !headers['Content-Type']) {
       headers['Content-Type'] = 'application/json';
     }
-
-    // Ajouter le token JWT depuis localStorage pour cross-origin
     const token = localStorage.getItem('token');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-
     const r = await fetch(buildUrl(path), {
       ...init,
       headers,
@@ -68,7 +107,7 @@ export default function AccountPage() {
     return r;
   }
 
-  // charger le profil au montage
+  // Load profile on mount
   useEffect(() => {
     if (!user) {
       router.replace('/auth/login');
@@ -89,8 +128,8 @@ export default function AccountPage() {
         if (data.birthdate) {
           setBirthdate(String(data.birthdate).substring(0, 10));
         }
-      } catch (e: any) {
-        setErr(e.message || 'Impossible de charger le compte');
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : 'Impossible de charger le compte');
       } finally {
         setLoading(false);
       }
@@ -101,7 +140,8 @@ export default function AccountPage() {
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    setOk(null);
+    setSuccess(null);
+    setSaving(true);
     try {
       const r = await authedFetch('/me', {
         method: 'PUT',
@@ -121,16 +161,20 @@ export default function AccountPage() {
         fullName: updated.fullName,
         avatarUrl: updated.avatarUrl,
       });
-      setOk('Profil mis à jour ✅');
-    } catch (e: any) {
-      setErr(e.message || 'Mise à jour impossible');
+      setSuccess('Profil mis à jour avec succès');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Mise à jour impossible');
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    setOk(null);
+    setSuccess(null);
+
     if (!newPwd || newPwd.length < 6) {
       setErr('Le nouveau mot de passe doit faire au moins 6 caractères.');
       return;
@@ -139,6 +183,8 @@ export default function AccountPage() {
       setErr('Les deux mots de passe ne correspondent pas.');
       return;
     }
+
+    setSaving(true);
     try {
       const r = await authedFetch('/me/password', {
         method: 'PUT',
@@ -148,245 +194,596 @@ export default function AccountPage() {
         }),
       });
       await r.json();
-      setOk('Mot de passe mis à jour ✅');
+      setSuccess('Mot de passe mis à jour avec succès');
       setCurrentPwd('');
       setNewPwd('');
       setConfirmPwd('');
-    } catch (e: any) {
-      setErr(e.message || 'Impossible de changer le mot de passe');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Impossible de changer le mot de passe');
+    } finally {
+      setSaving(false);
     }
   }
 
+  function handleLogout() {
+    logout();
+    router.push('/');
+  }
+
+  const getInitials = (name?: string | null) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        <div className="card text-sm text-slate-600">Chargement…</div>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 text-teal-500 animate-spin mx-auto mb-4" />
+          <p className="text-slate-400">Chargement de votre compte...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold text-slate-900">Mon compte</h1>
-        <p className="text-sm text-slate-500">
-          Mettez à jour vos informations personnelles et votre mot de passe.
-        </p>
-      </header>
-
-      {err && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-          {err}
-        </div>
-      )}
-      {ok && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {ok}
-        </div>
-      )}
-
-      {/* Profil */}
-      <form
-        onSubmit={handleProfileSubmit}
-        className="card space-y-4"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Informations personnelles
-            </h2>
-            <p className="text-xs text-slate-500">
-              Ces informations sont utilisées pour vos rendez-vous et vos
-              documents.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-900">
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2">Mon compte</h1>
+          <p className="text-slate-400">Gérez vos informations personnelles et vos préférences</p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <AvatarLarge src={avatarUrl} name={fullName || email} />
-          <div className="flex-1 space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              URL de la photo
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://..."
-            />
-            <p className="text-xs text-slate-400">
-              L’upload direct arrivera plus tard. Pour l’instant, vous pouvez
-              coller l’URL d’une image.
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Nom complet
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Prénom Nom"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="vous@exemple.com"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Téléphone
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+33..."
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-700">
-                Sexe
-              </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                value={sex}
-                onChange={(e) => setSex(e.target.value as any)}
-              >
-                <option value="">—</option>
-                <option value="MALE">Homme</option>
-                <option value="FEMALE">Femme</option>
-                <option value="OTHER">Autre</option>
-              </select>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Sidebar */}
+          <aside className="lg:w-64 flex-shrink-0">
+            {/* Profile card */}
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-4">
+              <div className="flex flex-col items-center text-center">
+                <div className="relative mb-4">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={fullName || 'Avatar'}
+                      className="w-20 h-20 rounded-full object-cover border-4 border-slate-700"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center border-4 border-slate-700">
+                      <span className="text-2xl font-bold text-white">
+                        {getInitials(fullName || email)}
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('profile')}
+                    className="absolute bottom-0 right-0 p-1.5 bg-teal-600 rounded-full text-white hover:bg-teal-500 transition-colors"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <h2 className="text-lg font-semibold text-white">{fullName || 'Utilisateur'}</h2>
+                <p className="text-sm text-slate-400">{email}</p>
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="block text-xs font-medium text-slate-700">
-                Date de naissance
-              </label>
-              <input
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-                type="date"
-                value={birthdate}
-                onChange={(e) => setBirthdate(e.target.value)}
-              />
+
+            {/* Navigation */}
+            <nav className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setErr(null);
+                    setSuccess(null);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-teal-600/20 text-teal-400 border-l-2 border-teal-500'
+                      : 'text-slate-300 hover:bg-slate-700 border-l-2 border-transparent'
+                  }`}
+                >
+                  <tab.icon className="w-5 h-5" />
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              ))}
+              <div className="border-t border-slate-700">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left text-red-400 hover:bg-slate-700 transition-colors"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="font-medium">Déconnexion</span>
+                </button>
+              </div>
+            </nav>
+
+            {/* Quick links */}
+            <div className="mt-4 bg-slate-800 rounded-xl border border-slate-700 p-4">
+              <h3 className="text-sm font-medium text-slate-400 mb-3">Accès rapide</h3>
+              <div className="space-y-2">
+                <a
+                  href="/appointments"
+                  className="flex items-center gap-2 text-sm text-slate-300 hover:text-teal-400 transition-colors"
+                >
+                  <Calendar className="w-4 h-4" />
+                  Mes rendez-vous
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </a>
+                <a
+                  href="/favorites"
+                  className="flex items-center gap-2 text-sm text-slate-300 hover:text-teal-400 transition-colors"
+                >
+                  <Heart className="w-4 h-4" />
+                  Mes favoris
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </a>
+                <a
+                  href="/medical-documents"
+                  className="flex items-center gap-2 text-sm text-slate-300 hover:text-teal-400 transition-colors"
+                >
+                  <FileText className="w-4 h-4" />
+                  Mes documents
+                  <ChevronRight className="w-4 h-4 ml-auto" />
+                </a>
+              </div>
             </div>
-          </div>
+          </aside>
 
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Ville
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Paris, Lyon…"
-            />
-          </div>
+          {/* Main content */}
+          <main className="flex-1">
+            {/* Alerts */}
+            {err && (
+              <div className="mb-6 flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
+                <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm">{err}</span>
+              </div>
+            )}
+            {success && (
+              <div className="mb-6 flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400">
+                <Check className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm">{success}</span>
+              </div>
+            )}
+
+            {/* Profile Tab */}
+            {activeTab === 'profile' && (
+              <form onSubmit={handleProfileSubmit} className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Informations personnelles</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Ces informations sont utilisées pour vos rendez-vous et documents médicaux.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Avatar URL */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Photo de profil (URL)
+                      </label>
+                      <div className="flex items-center gap-4">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt="Avatar preview"
+                            className="w-16 h-16 rounded-full object-cover border-2 border-slate-600"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-slate-400">
+                            <Camera className="w-6 h-6" />
+                          </div>
+                        )}
+                        <input
+                          type="url"
+                          value={avatarUrl}
+                          onChange={(e) => setAvatarUrl(e.target.value)}
+                          placeholder="https://exemple.com/photo.jpg"
+                          className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Nom complet
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type="text"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          placeholder="Jean Dupont"
+                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Adresse email
+                      </label>
+                      <div className="relative">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="vous@exemple.com"
+                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Phone */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Téléphone
+                      </label>
+                      <div className="relative">
+                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="+33 6 12 34 56 78"
+                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Sex and Birthdate */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Sexe
+                        </label>
+                        <select
+                          value={sex}
+                          onChange={(e) => setSex(e.target.value as typeof sex)}
+                          className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500 appearance-none cursor-pointer"
+                        >
+                          <option value="">Non précisé</option>
+                          <option value="MALE">Homme</option>
+                          <option value="FEMALE">Femme</option>
+                          <option value="OTHER">Autre</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Date de naissance
+                        </label>
+                        <div className="relative">
+                          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                          <input
+                            type="date"
+                            value={birthdate}
+                            onChange={(e) => setBirthdate(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* City */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Ville
+                      </label>
+                      <div className="relative">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={(e) => setCity(e.target.value)}
+                          placeholder="Paris, Lyon, Marseille..."
+                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Enregistrer les modifications
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Security Tab */}
+            {activeTab === 'security' && (
+              <form onSubmit={handlePasswordSubmit} className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Changer le mot de passe</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Choisissez un mot de passe fort pour sécuriser votre compte.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Current Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Mot de passe actuel
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type={showCurrentPwd ? 'text' : 'password'}
+                          value={currentPwd}
+                          onChange={(e) => setCurrentPwd(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          {showCurrentPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* New Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Nouveau mot de passe
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type={showNewPwd ? 'text' : 'password'}
+                          value={newPwd}
+                          onChange={(e) => setNewPwd(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPwd(!showNewPwd)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          {showNewPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Minimum 6 caractères</p>
+                    </div>
+
+                    {/* Confirm Password */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Confirmer le mot de passe
+                      </label>
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <input
+                          type={showConfirmPwd ? 'text' : 'password'}
+                          value={confirmPwd}
+                          onChange={(e) => setConfirmPwd(e.target.value)}
+                          placeholder="••••••••"
+                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Security info */}
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-4">Sécurité du compte</h2>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                          <Shield className="w-5 h-5 text-green-400" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-white">Email vérifié</div>
+                          <div className="text-xs text-slate-400">{email}</div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">Actif</span>
+                    </div>
+                    <div className="flex items-center justify-between py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
+                          <Settings className="w-5 h-5 text-slate-400" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-white">Authentification à deux facteurs</div>
+                          <div className="text-xs text-slate-400">Ajoutez une couche de sécurité supplémentaire</div>
+                        </div>
+                      </div>
+                      <span className="text-xs text-slate-400 bg-slate-700 px-2 py-1 rounded-full">Bientôt</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={saving || !currentPwd || !newPwd || !confirmPwd}
+                    className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Mise à jour...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4" />
+                        Mettre à jour le mot de passe
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Notifications Tab */}
+            {activeTab === 'notifications' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Préférences de notification</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Choisissez comment vous souhaitez être informé.
+                  </p>
+
+                  <div className="space-y-4">
+                    {/* Email notifications */}
+                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                      <div>
+                        <div className="text-sm font-medium text-white">Notifications par email</div>
+                        <div className="text-xs text-slate-400">Recevez des mises à jour par email</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={emailNotifs}
+                          onChange={(e) => setEmailNotifs(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
+                    {/* SMS notifications */}
+                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                      <div>
+                        <div className="text-sm font-medium text-white">Notifications par SMS</div>
+                        <div className="text-xs text-slate-400">Recevez des rappels par SMS</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={smsNotifs}
+                          onChange={(e) => setSmsNotifs(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Reminder notifications */}
+                    <div className="flex items-center justify-between py-3 border-b border-slate-700">
+                      <div>
+                        <div className="text-sm font-medium text-white">Rappels de rendez-vous</div>
+                        <div className="text-xs text-slate-400">Rappels 24h et 1h avant vos rendez-vous</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={reminderNotifs}
+                          onChange={(e) => setReminderNotifs(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Marketing */}
+                    <div className="flex items-center justify-between py-3">
+                      <div>
+                        <div className="text-sm font-medium text-white">Communications marketing</div>
+                        <div className="text-xs text-slate-400">Nouveautés, offres et conseils santé</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={marketingNotifs}
+                          onChange={(e) => setMarketingNotifs(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    Enregistrer les préférences
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Billing Tab */}
+            {activeTab === 'billing' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Facturation</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Gérez vos moyens de paiement et consultez votre historique.
+                  </p>
+
+                  <div className="bg-slate-700/50 rounded-xl p-8 text-center">
+                    <CreditCard className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-white mb-2">Aucun moyen de paiement</h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Vous n'avez pas encore ajouté de moyen de paiement.
+                    </p>
+                    <button
+                      type="button"
+                      className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-500 transition-colors"
+                    >
+                      Ajouter une carte
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-4">Historique des paiements</h2>
+                  <div className="text-center py-8 text-slate-400">
+                    <FileText className="w-10 h-10 mx-auto mb-3 text-slate-500" />
+                    <p className="text-sm">Aucun paiement pour le moment</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
         </div>
-
-        <div className="flex justify-end">
-          <button type="submit" className="btn primary text-sm">
-            Enregistrer
-          </button>
-        </div>
-      </form>
-
-      {/* Mot de passe */}
-      <form onSubmit={handlePasswordSubmit} className="card space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">
-            Mot de passe
-          </h2>
-          <p className="text-xs text-slate-500">
-            Choisissez un mot de passe fort pour sécuriser votre compte.
-          </p>
-        </div>
-
-        <div className="grid gap-3">
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Mot de passe actuel
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              type="password"
-              value={currentPwd}
-              onChange={(e) => setCurrentPwd(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Nouveau mot de passe
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              type="password"
-              value={newPwd}
-              onChange={(e) => setNewPwd(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs font-medium text-slate-700">
-              Confirmer le mot de passe
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
-              type="password"
-              value={confirmPwd}
-              onChange={(e) => setConfirmPwd(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <button type="submit" className="btn text-sm">
-            Mettre à jour le mot de passe
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function AvatarLarge({ src, name }: { src?: string | null; name: string }) {
-  const initials =
-    name
-      ?.split(' ')
-      .map((p) => p.charAt(0).toUpperCase())
-      .slice(0, 2)
-      .join('') || 'U';
-
-  if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return (
-      <img
-        src={src}
-        alt={name}
-        className="h-14 w-14 rounded-full object-cover"
-      />
-    );
-  }
-
-  return (
-    <div className="grid h-14 w-14 place-items-center rounded-full bg-slate-200 text-base font-semibold text-slate-700">
-      {initials}
+      </div>
     </div>
   );
 }

@@ -2,66 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --muted: #6b7280;
-}
-
-body { @apply bg-white text-gray-900; }
-.card { @apply rounded-2xl border bg-white shadow-sm p-4; }
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-  }
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
+    /* Dark Slate/Teal Theme - Default */
+    --background: 222.2 47.4% 11.2%; /* slate-900 */
+    --foreground: 210 40% 98%; /* slate-50 */
+
+    --card: 217.2 32.6% 17.5%; /* slate-800 */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 217.2 32.6% 17.5%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 173 58% 39%; /* teal-600 */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217.2 32.6% 25%; /* slate-700 */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 25%;
+    --muted-foreground: 215 20.2% 65.1%; /* slate-400 */
+
+    --accent: 173 58% 39%; /* teal-600 */
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 25%; /* slate-700 */
+    --input: 217.2 32.6% 25%;
+    --ring: 173 58% 39%; /* teal-600 */
+
+    --chart-1: 173 58% 39%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    --radius: 0.75rem;
+  }
+
+  /* Light mode - optional override */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 47.4% 11.2%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 47.4% 11.2%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --primary: 173 58% 39%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 173 58% 39%;
   }
 }
 
@@ -69,7 +70,138 @@ body { @apply bg-white text-gray-900; }
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer components {
+  /* Legacy card class - deprecated, use Card component */
+  .card {
+    @apply rounded-xl border border-slate-700 bg-slate-800 p-4;
+  }
+
+  /* Animations */
+  .animate-in {
+    animation: animate-in 0.2s ease-out;
+  }
+
+  @keyframes animate-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .slide-in-from-top-2 {
+    animation: slide-in-from-top 0.2s ease-out;
+  }
+
+  @keyframes slide-in-from-top {
+    from {
+      transform: translateY(-8px);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .zoom-in-95 {
+    animation: zoom-in 0.2s ease-out;
+  }
+
+  @keyframes zoom-in {
+    from {
+      transform: scale(0.95);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  .fade-in-50 {
+    animation: fade-in-50 0.2s ease-out;
+  }
+
+  @keyframes fade-in-50 {
+    from {
+      opacity: 0.5;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .slide-in-from-top-4 {
+    animation: slide-from-top-4 0.3s ease-out;
+  }
+
+  @keyframes slide-from-top-4 {
+    from {
+      transform: translateX(-50%) translateY(-16px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  }
+}
+
+@layer utilities {
+  /* Focus ring utilities */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:ring-offset-2 focus:ring-offset-slate-900;
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-teal-400 to-teal-600 bg-clip-text text-transparent;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-slate-800/80 backdrop-blur-md;
   }
 }

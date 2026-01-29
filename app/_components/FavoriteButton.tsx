@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Heart, Loader2 } from 'lucide-react';
 
 interface FavoriteButtonProps {
   doctorId: string;
@@ -99,50 +100,41 @@ export default function FavoriteButton({ doctorId, size = 'md', showCount = fals
   };
 
   const sizeStyles = {
-    sm: { width: 28, height: 28, fontSize: 14 },
-    md: { width: 36, height: 36, fontSize: 18 },
-    lg: { width: 44, height: 44, fontSize: 22 },
+    sm: 'w-7 h-7',
+    md: 'w-9 h-9',
+    lg: 'w-11 h-11',
   };
 
-  const style = sizeStyles[size];
+  const iconSizes = {
+    sm: 'w-3.5 h-3.5',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5',
+  };
 
   return (
     <button
       onClick={toggleFavorite}
       disabled={loading}
       title={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-      style={{
-        ...style,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        border: 'none',
-        borderRadius: '50%',
-        background: isFavorite ? '#fef2f2' : '#f3f4f6',
-        color: isFavorite ? '#ef4444' : '#9ca3af',
-        cursor: loading ? 'not-allowed' : 'pointer',
-        transition: 'all 0.2s ease',
-        opacity: loading ? 0.6 : 1,
-      }}
-      onMouseEnter={(e) => {
-        if (!loading) {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.background = isFavorite ? '#fee2e2' : '#e5e7eb';
+      className={`
+        ${sizeStyles[size]}
+        inline-flex items-center justify-center gap-1
+        rounded-full border-none
+        transition-all duration-200
+        ${loading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+        ${isFavorite
+          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+          : 'bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-slate-300'
         }
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'scale(1)';
-        e.currentTarget.style.background = isFavorite ? '#fef2f2' : '#f3f4f6';
-      }}
+      `}
     >
-      <span style={{ fontSize: style.fontSize }}>
-        {isFavorite ? '❤️' : '🤍'}
-      </span>
+      {loading ? (
+        <Loader2 className={`${iconSizes[size]} animate-spin`} />
+      ) : (
+        <Heart className={`${iconSizes[size]} ${isFavorite ? 'fill-current' : ''}`} />
+      )}
       {showCount && count > 0 && (
-        <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>
-          {count}
-        </span>
+        <span className="text-xs font-medium text-slate-400">{count}</span>
       )}
     </button>
   );

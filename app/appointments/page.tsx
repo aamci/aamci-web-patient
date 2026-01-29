@@ -4,7 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/_providers/AuthProvider';
-import { Search, X, Loader2, Calendar } from 'lucide-react';
+import {
+  Search,
+  X,
+  Loader2,
+  Calendar,
+  CalendarDays,
+  CalendarCheck,
+  CalendarX,
+  Clock,
+  Stethoscope,
+} from 'lucide-react';
 import { AppointmentCard, type Appointment } from '@/components/cards';
 
 function getApiBase(): string {
@@ -37,7 +47,7 @@ export default function AppointmentsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
     const headers: Record<string, string> = {
-      ...(init?.headers as any),
+      ...(init?.headers as Record<string, string>),
     };
 
     if (token) {
@@ -82,11 +92,12 @@ export default function AppointmentsPage() {
         return dateB - dateA;
       });
       setItems(list);
-    } catch (e: any) {
-      if (e?.message?.includes('Non authentifié') || e?.message?.includes('401')) {
+    } catch (e: unknown) {
+      const error = e as Error;
+      if (error?.message?.includes('Non authentifié') || error?.message?.includes('401')) {
         router.replace('/auth/login');
       } else {
-        setErr(e?.message || 'Erreur de chargement');
+        setErr(error?.message || 'Erreur de chargement');
       }
     } finally {
       setLoading(false);
@@ -106,8 +117,9 @@ export default function AppointmentsPage() {
       setItems((prev) =>
         prev.map((a) => (a.id === apptId ? { ...a, status: 'CANCELLED' } : a)),
       );
-    } catch (e: any) {
-      setErr(e?.message || 'Échec de l\'annulation');
+    } catch (e: unknown) {
+      const error = e as Error;
+      setErr(error?.message || 'Échec de l\'annulation');
     } finally {
       setActionId(null);
     }
@@ -120,6 +132,7 @@ export default function AppointmentsPage() {
       return;
     }
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user]);
 
   const filteredItems = useMemo(() => {
@@ -170,17 +183,22 @@ export default function AppointmentsPage() {
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+        <Loader2 className="w-10 h-10 text-teal-500 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1000px] mx-auto px-4 py-6">
+    <div className="max-w-[1000px] mx-auto px-4 py-8">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-[28px] font-bold text-gray-900">Mes Rendez-vous</h1>
-        <p className="text-gray-500 mt-1">Gérez vos consultations passées et à venir</p>
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="p-2.5 bg-teal-500/10 rounded-xl">
+            <CalendarDays className="w-6 h-6 text-teal-400" />
+          </div>
+          <h1 className="text-2xl font-bold text-white">Mes Rendez-vous</h1>
+        </div>
+        <p className="text-slate-400 ml-14">Gérez vos consultations passées et à venir</p>
       </div>
 
       {/* Statistiques */}
@@ -188,13 +206,15 @@ export default function AppointmentsPage() {
         <StatCard
           label="Total"
           value={stats.total}
-          color="blue"
+          icon={<Calendar className="w-5 h-5" />}
+          color="teal"
           active={filter === 'all'}
           onClick={() => setFilter('all')}
         />
         <StatCard
           label="À venir"
           value={stats.upcoming}
+          icon={<Clock className="w-5 h-5" />}
           color="green"
           active={filter === 'upcoming'}
           onClick={() => setFilter('upcoming')}
@@ -202,13 +222,15 @@ export default function AppointmentsPage() {
         <StatCard
           label="Passés"
           value={stats.past}
-          color="gray"
+          icon={<CalendarCheck className="w-5 h-5" />}
+          color="slate"
           active={filter === 'past'}
           onClick={() => setFilter('past')}
         />
         <StatCard
           label="Annulés"
           value={stats.cancelled}
+          icon={<CalendarX className="w-5 h-5" />}
           color="red"
           active={filter === 'cancelled'}
           onClick={() => setFilter('cancelled')}
@@ -216,22 +238,22 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Barre de recherche */}
-      <div className="mb-5">
+      <div className="mb-6">
         <div className="relative">
           <input
             type="text"
             placeholder="Rechercher par médecin, type de consultation..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full py-3 px-4 pl-11 text-sm border border-gray-200 rounded-xl outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+            className="w-full py-3 px-4 pl-11 text-sm bg-slate-800 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 outline-none transition-all focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
           />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-500" />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center hover:bg-slate-600 transition-colors"
             >
-              <X className="w-3 h-3 text-gray-500" />
+              <X className="w-3 h-3 text-slate-400" />
             </button>
           )}
         </div>
@@ -239,16 +261,17 @@ export default function AppointmentsPage() {
 
       {/* Erreur */}
       {err && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 mb-4 text-sm">
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 mb-4 text-sm flex items-center gap-2">
+          <X className="w-4 h-4 flex-shrink-0" />
           {err}
         </div>
       )}
 
       {/* Contenu */}
       {loading ? (
-        <div className="grid gap-3">
+        <div className="grid gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-gray-100 rounded-2xl h-[120px] animate-pulse" />
+            <div key={i} className="bg-slate-800 rounded-2xl h-[140px] animate-pulse border border-slate-700" />
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
@@ -272,36 +295,42 @@ export default function AppointmentsPage() {
 function StatCard({
   label,
   value,
+  icon,
   color,
   active,
   onClick,
 }: {
   label: string;
   value: number;
-  color: 'blue' | 'green' | 'gray' | 'red';
+  icon: React.ReactNode;
+  color: 'teal' | 'green' | 'slate' | 'red';
   active: boolean;
   onClick: () => void;
 }) {
   const colorClasses = {
-    blue: {
-      text: 'text-blue-600',
-      activeBg: 'bg-blue-50',
-      activeBorder: 'border-blue-500',
+    teal: {
+      text: 'text-teal-400',
+      iconBg: 'bg-teal-500/20',
+      activeBg: 'bg-teal-500/10',
+      activeBorder: 'border-teal-500/50',
     },
     green: {
-      text: 'text-green-600',
-      activeBg: 'bg-green-50',
-      activeBorder: 'border-green-500',
+      text: 'text-green-400',
+      iconBg: 'bg-green-500/20',
+      activeBg: 'bg-green-500/10',
+      activeBorder: 'border-green-500/50',
     },
-    gray: {
-      text: 'text-gray-500',
-      activeBg: 'bg-gray-50',
-      activeBorder: 'border-gray-500',
+    slate: {
+      text: 'text-slate-400',
+      iconBg: 'bg-slate-500/20',
+      activeBg: 'bg-slate-700/50',
+      activeBorder: 'border-slate-500/50',
     },
     red: {
-      text: 'text-red-500',
-      activeBg: 'bg-red-50',
-      activeBorder: 'border-red-500',
+      text: 'text-red-400',
+      iconBg: 'bg-red-500/20',
+      activeBg: 'bg-red-500/10',
+      activeBorder: 'border-red-500/50',
     },
   };
 
@@ -310,14 +339,23 @@ function StatCard({
   return (
     <button
       onClick={onClick}
-      className={`p-4 rounded-xl border-2 transition-all text-center ${
+      className={`p-4 rounded-xl border transition-all text-left ${
         active
           ? `${colors.activeBg} ${colors.activeBorder}`
-          : 'bg-white border-gray-200 hover:border-gray-300'
+          : 'bg-slate-800 border-slate-700 hover:border-slate-600'
       }`}
     >
-      <div className={`text-[28px] font-bold ${colors.text}`}>{value}</div>
-      <div className="text-[13px] text-gray-500 mt-0.5">{label}</div>
+      <div className="flex items-center gap-3">
+        <div className={`p-2 rounded-lg ${colors.iconBg} ${colors.text}`}>
+          {icon}
+        </div>
+        <div>
+          <div className={`text-2xl font-bold ${active ? colors.text : 'text-white'}`}>
+            {value}
+          </div>
+          <div className="text-xs text-slate-500">{label}</div>
+        </div>
+      </div>
     </button>
   );
 }
@@ -325,22 +363,22 @@ function StatCard({
 function EmptyState({ filter, searchQuery }: { filter: FilterType; searchQuery: string }) {
   const messages: Record<FilterType, { icon: React.ReactNode; title: string; desc: string }> = {
     all: {
-      icon: <Calendar className="w-12 h-12 text-gray-300" />,
+      icon: <Calendar className="w-12 h-12 text-slate-600" />,
       title: 'Aucun rendez-vous',
       desc: 'Prenez votre premier rendez-vous avec un médecin',
     },
     upcoming: {
-      icon: <Calendar className="w-12 h-12 text-gray-300" />,
+      icon: <Clock className="w-12 h-12 text-slate-600" />,
       title: 'Aucun rendez-vous à venir',
       desc: 'Vous n\'avez pas de consultation prévue',
     },
     past: {
-      icon: <Calendar className="w-12 h-12 text-gray-300" />,
+      icon: <CalendarCheck className="w-12 h-12 text-slate-600" />,
       title: 'Aucun rendez-vous passé',
       desc: 'Votre historique de consultations est vide',
     },
     cancelled: {
-      icon: <X className="w-12 h-12 text-gray-300" />,
+      icon: <CalendarX className="w-12 h-12 text-slate-600" />,
       title: 'Aucun rendez-vous annulé',
       desc: 'Vous n\'avez annulé aucune consultation',
     },
@@ -349,14 +387,16 @@ function EmptyState({ filter, searchQuery }: { filter: FilterType; searchQuery: 
   const msg = messages[filter];
 
   return (
-    <div className="text-center py-16 px-5 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+    <div className="text-center py-16 px-5 bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-700">
       <div className="flex justify-center mb-4">
-        {searchQuery ? <Search className="w-12 h-12 text-gray-300" /> : msg.icon}
+        <div className="p-4 bg-slate-800 rounded-2xl">
+          {searchQuery ? <Search className="w-12 h-12 text-slate-600" /> : msg.icon}
+        </div>
       </div>
-      <h3 className="text-lg font-semibold mb-2">
+      <h3 className="text-lg font-semibold text-white mb-2">
         {searchQuery ? 'Aucun résultat trouvé' : msg.title}
       </h3>
-      <p className="text-gray-500 mb-5">
+      <p className="text-slate-400 mb-6 max-w-sm mx-auto">
         {searchQuery
           ? `Aucun rendez-vous ne correspond à "${searchQuery}"`
           : msg.desc}
@@ -364,8 +404,9 @@ function EmptyState({ filter, searchQuery }: { filter: FilterType; searchQuery: 
       {filter === 'all' && !searchQuery && (
         <Link
           href="/doctors"
-          className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors"
         >
+          <Stethoscope className="w-5 h-5" />
           Trouver un médecin
         </Link>
       )}

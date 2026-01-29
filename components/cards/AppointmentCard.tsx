@@ -11,6 +11,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  MapPin,
 } from 'lucide-react';
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
@@ -44,45 +45,44 @@ export interface Appointment {
 
 export interface AppointmentCardProps {
   appointment: Appointment;
-  /** Callback when cancel button is clicked */
   onCancel?: () => void;
-  /** Is the cancel action loading */
   isLoading?: boolean;
-  /** Show "Add to calendar" button */
   showAddToCalendar?: boolean;
-  /** Show doctor profile link */
   showDoctorLink?: boolean;
-  /** Compact variant without some decorations */
   variant?: 'default' | 'compact';
 }
 
 const STATUS_CONFIG: Record<
   AppointmentStatus,
-  { label: string; icon: React.ReactNode; bgClass: string; textClass: string }
+  { label: string; icon: React.ReactNode; bgClass: string; textClass: string; borderClass: string }
 > = {
   PENDING: {
     label: 'En attente',
     icon: <Clock className="w-3.5 h-3.5" />,
-    bgClass: 'bg-amber-100',
-    textClass: 'text-amber-600',
+    bgClass: 'bg-amber-500/20',
+    textClass: 'text-amber-400',
+    borderClass: 'border-amber-500/30',
   },
   CONFIRMED: {
     label: 'Confirmé',
     icon: <CheckCircle className="w-3.5 h-3.5" />,
-    bgClass: 'bg-green-100',
-    textClass: 'text-green-600',
+    bgClass: 'bg-green-500/20',
+    textClass: 'text-green-400',
+    borderClass: 'border-green-500/30',
   },
   CANCELLED: {
     label: 'Annulé',
     icon: <XCircle className="w-3.5 h-3.5" />,
-    bgClass: 'bg-red-100',
-    textClass: 'text-red-600',
+    bgClass: 'bg-red-500/20',
+    textClass: 'text-red-400',
+    borderClass: 'border-red-500/30',
   },
   NO_SHOW: {
     label: 'Absent',
     icon: <AlertCircle className="w-3.5 h-3.5" />,
-    bgClass: 'bg-gray-100',
-    textClass: 'text-gray-500',
+    bgClass: 'bg-slate-500/20',
+    textClass: 'text-slate-400',
+    borderClass: 'border-slate-500/30',
   },
 };
 
@@ -112,8 +112,9 @@ export default function AppointmentCard({
       ? {
           label: 'Terminé',
           icon: <CheckCircle className="w-3.5 h-3.5" />,
-          bgClass: 'bg-blue-100',
-          textClass: 'text-blue-600',
+          bgClass: 'bg-teal-500/20',
+          textClass: 'text-teal-400',
+          borderClass: 'border-teal-500/30',
         }
       : statusConfig;
 
@@ -121,15 +122,17 @@ export default function AppointmentCard({
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm ${
-        appointment.status === 'CANCELLED' ? 'opacity-70' : ''
+      className={`bg-slate-800 rounded-2xl border border-slate-700 overflow-hidden transition-all hover:border-slate-600 ${
+        appointment.status === 'CANCELLED' ? 'opacity-60' : ''
       }`}
     >
       {/* Top color bar */}
       {variant === 'default' && (
         <div
           className={`h-1 ${
-            isUpcoming && appointment.status !== 'CANCELLED' ? 'bg-green-500' : 'bg-gray-200'
+            isUpcoming && appointment.status !== 'CANCELLED'
+              ? 'bg-gradient-to-r from-teal-500 to-teal-400'
+              : 'bg-slate-700'
           }`}
         />
       )}
@@ -138,19 +141,19 @@ export default function AppointmentCard({
         <div className="flex gap-4 items-start">
           {/* Date/Time Box */}
           <div
-            className={`min-w-[70px] text-center py-3 px-2 rounded-xl border ${
+            className={`min-w-[72px] text-center py-3 px-3 rounded-xl border ${
               isUpcoming && appointment.status !== 'CANCELLED'
-                ? 'bg-green-50 border-green-200'
-                : 'bg-gray-50 border-gray-200'
+                ? 'bg-teal-500/10 border-teal-500/30'
+                : 'bg-slate-700/50 border-slate-600'
             }`}
           >
             {start ? (
               <>
                 <div
-                  className={`text-[11px] font-semibold uppercase ${
+                  className={`text-[11px] font-semibold uppercase tracking-wide ${
                     isUpcoming && appointment.status !== 'CANCELLED'
-                      ? 'text-green-600'
-                      : 'text-gray-500'
+                      ? 'text-teal-400'
+                      : 'text-slate-500'
                   }`}
                 >
                   {start.toLocaleDateString('fr-FR', { month: 'short' })}
@@ -158,13 +161,13 @@ export default function AppointmentCard({
                 <div
                   className={`text-2xl font-bold leading-tight ${
                     isUpcoming && appointment.status !== 'CANCELLED'
-                      ? 'text-gray-900'
-                      : 'text-gray-500'
+                      ? 'text-white'
+                      : 'text-slate-400'
                   }`}
                 >
                   {start.getDate()}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-slate-400 mt-0.5">
                   {start.toLocaleTimeString('fr-FR', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -172,7 +175,7 @@ export default function AppointmentCard({
                 </div>
               </>
             ) : (
-              <div className="text-xs text-gray-400 py-2">À définir</div>
+              <div className="text-xs text-slate-500 py-2">À définir</div>
             )}
           </div>
 
@@ -180,20 +183,26 @@ export default function AppointmentCard({
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h3 className="text-base font-semibold text-gray-900 truncate">{doctorName}</h3>
-                <div className="text-[13px] text-gray-500 mt-0.5">
-                  {consultationType}
+                <h3 className="text-base font-semibold text-white truncate">{doctorName}</h3>
+                <div className="text-[13px] text-slate-400 mt-0.5 flex items-center gap-2">
+                  <span>{consultationType}</span>
                   {start && (
-                    <span className="hidden sm:inline">
-                      {' '}• {start.toLocaleDateString('fr-FR', { weekday: 'long' })}
+                    <span className="hidden sm:inline text-slate-500">
+                      • {start.toLocaleDateString('fr-FR', { weekday: 'long' })}
                     </span>
                   )}
                 </div>
+                {appointment.hospital?.name && (
+                  <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {appointment.hospital.name}
+                  </div>
+                )}
               </div>
 
               {/* Status Badge */}
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${displayStatus.bgClass} ${displayStatus.textClass}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap border ${displayStatus.bgClass} ${displayStatus.textClass} ${displayStatus.borderClass}`}
               >
                 {displayStatus.icon}
                 {displayStatus.label}
@@ -202,8 +211,8 @@ export default function AppointmentCard({
 
             {/* Notes */}
             {appointment.notes && (
-              <div className="mt-3 p-2.5 bg-gray-50 rounded-lg border-l-[3px] border-gray-200 text-[13px] text-gray-600 flex items-start gap-2">
-                <MessageSquare className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+              <div className="mt-3 p-3 bg-slate-700/50 rounded-lg border-l-2 border-teal-500/50 text-[13px] text-slate-300 flex items-start gap-2">
+                <MessageSquare className="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5" />
                 <span className="line-clamp-2">{appointment.notes}</span>
               </div>
             )}
@@ -213,7 +222,7 @@ export default function AppointmentCard({
               {showDoctorLink && appointment.slot?.ownerId && (
                 <Link
                   href={`/doctors/${appointment.slot.ownerId}` as const}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-slate-600 hover:text-white transition-colors border border-slate-600"
                 >
                   <User className="w-4 h-4" />
                   Voir le médecin
@@ -224,7 +233,7 @@ export default function AppointmentCard({
                 <button
                   onClick={onCancel}
                   disabled={isLoading}
-                  className={`px-4 py-2 bg-red-50 text-red-600 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-red-100 transition-colors ${
+                  className={`px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-red-500/20 transition-colors border border-red-500/30 ${
                     isLoading ? 'opacity-60 cursor-not-allowed' : ''
                   }`}
                 >
@@ -243,7 +252,7 @@ export default function AppointmentCard({
               )}
 
               {showAddToCalendar && isUpcoming && appointment.status === 'CONFIRMED' && (
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-blue-700 transition-colors">
+                <button className="px-4 py-2 bg-teal-600 text-white rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-teal-500 transition-colors">
                   <CalendarPlus className="w-4 h-4" />
                   Ajouter au calendrier
                 </button>
@@ -254,7 +263,7 @@ export default function AppointmentCard({
 
         {/* Footer with creation date */}
         {variant === 'default' && (
-          <div className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400">
+          <div className="mt-4 pt-3 border-t border-slate-700 text-[11px] text-slate-500">
             Réservé le{' '}
             {new Date(appointment.createdAt).toLocaleDateString('fr-FR', {
               day: 'numeric',
