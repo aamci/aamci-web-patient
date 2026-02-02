@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/_providers/AuthProvider';
 import {
   Menu,
@@ -12,25 +12,25 @@ import {
   Calendar,
   Heart,
   Building2,
-  FileText,
   User,
   LogOut,
   ChevronDown,
-  Settings,
+  Activity,
+  Star,
 } from 'lucide-react';
+import NotificationBell from '@/components/NotificationBell';
 
 const navLinks = [
   { href: '/' as const, label: 'Accueil', icon: Home },
   { href: '/doctors' as const, label: 'Médecins', icon: Search },
   { href: '/appointments' as const, label: 'Rendez-vous', icon: Calendar },
+  { href: '/health-records' as const, label: 'Dossier médical', icon: Activity },
   { href: '/favorites' as const, label: 'Favoris', icon: Heart },
   { href: '/facilities' as const, label: 'Établissements', icon: Building2 },
-  { href: '/medical-documents' as const, label: 'Documents', icon: FileText },
 ];
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -111,6 +111,9 @@ export default function Navbar() {
 
           {/* Actions droite */}
           <div className="flex items-center gap-3">
+            {/* Notification Bell - only for logged in users */}
+            {user && <NotificationBell />}
+
             {!user ? (
               <>
                 <Link
@@ -182,12 +185,12 @@ export default function Navbar() {
                         Mes favoris
                       </Link>
                       <Link
-                        href="/medical-documents"
+                        href="/reviews"
                         onClick={() => setUserMenuOpen(false)}
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
                       >
-                        <FileText className="w-4 h-4 text-slate-400" />
-                        Mes documents
+                        <Star className="w-4 h-4 text-slate-400" />
+                        Mes avis
                       </Link>
                     </div>
 

@@ -96,13 +96,16 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   // Tabs
   const [activeTab, setActiveTab] = useState<'info' | 'slots' | 'reviews'>('slots');
 
-  // Booking modal
+  // Booking modal - multi-step flow
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedKind, setSelectedKind] = useState<string | null>(null);
   const [bookingNotes, setBookingNotes] = useState('');
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [bookingStep, setBookingStep] = useState<'type' | 'details' | 'payment' | 'confirm'>('type');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile' | 'onsite'>('card');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Load doctor, slots, appointment kinds
   useEffect(() => {
@@ -305,6 +308,19 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     setBookingError(null);
     setBookingSuccess(false);
     setBookingNotes('');
+    setBookingStep('type');
+    setPaymentMethod('card');
+    setAcceptedTerms(false);
+  }
+
+  function getSelectedKindDetails() {
+    return appointmentKinds.find(k => k.id === selectedKind);
+  }
+
+  function getBookingPrice() {
+    const kind = getSelectedKindDetails();
+    if (kind?.price) return kind.price;
+    return prof?.consultationPrice || 50;
   }
 
   const getInitials = (name?: string | null) => {
@@ -765,23 +781,52 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
         )}
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking Modal - Multi-step */}
       {selectedSlot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-              <h3 className="text-lg font-semibold text-white">Confirmer le rendez-vous</h3>
-              <button
-                onClick={closeModal}
-                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg overflow-hidden">
+            {/* Header with steps */}
+            <div className="px-6 py-4 border-b border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">
+                  {bookingSuccess ? 'Confirmation' :
+                   bookingStep === 'type' ? 'Type de consultation' :
+                   bookingStep === 'details' ? 'Détails du rendez-vous' :
+                   bookingStep === 'payment' ? 'Paiement' : 'Récapitulatif'}
+                </h3>
+                <button
+                  onClick={closeModal}
+                  className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Progress steps */}
+              {!bookingSuccess && (
+                <div className="flex items-center gap-2">
+                  {['type', 'details', 'payment', 'confirm'].map((step, idx) => (
+                    <div key={step} className="flex items-center flex-1">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                        bookingStep === step ? 'bg-teal-600 text-white' :
+                        ['type', 'details', 'payment', 'confirm'].indexOf(bookingStep) > idx ? 'bg-teal-600/30 text-teal-400' :
+                        'bg-slate-700 text-slate-500'
+                      }`}>
+                        {idx + 1}
+                      </div>
+                      {idx < 3 && (
+                        <div className={`flex-1 h-1 mx-2 rounded ${
+                          ['type', 'details', 'payment', 'confirm'].indexOf(bookingStep) > idx ? 'bg-teal-600/50' : 'bg-slate-700'
+                        }`} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Content */}
-            <div className="p-6 space-y-4">
+            <div className="p-6">
               {bookingSuccess ? (
                 <div className="text-center py-6">
                   <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -792,13 +837,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 </div>
               ) : (
                 <>
-                  {/* Date/time info */}
-                  <div className="bg-slate-700/50 rounded-xl p-4">
+                  {/* Date/time info - always visible */}
+                  <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-teal-600/20 rounded-xl flex items-center justify-center">
                         <Calendar className="w-6 h-6 text-teal-400" />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <div className="text-white font-medium">
                           {DAYS_FULL[new Date(selectedSlot.start).getDay()]}{' '}
                           {new Date(selectedSlot.start).getDate()}{' '}
@@ -816,45 +861,259 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                           })}
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* Doctor info */}
-                  <div className="flex items-center gap-3">
-                    {doctor.avatarUrl ? (
-                      <img
-                        src={doctor.avatarUrl}
-                        alt={doctor.fullName || ''}
-                        className="w-10 h-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold text-white">
-                        {getInitials(doctor.fullName)}
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-teal-400">{getBookingPrice()} €</div>
+                        <div className="text-xs text-slate-500">Consultation</div>
                       </div>
-                    )}
-                    <div>
-                      <div className="text-white font-medium">{doctor.fullName}</div>
-                      <div className="text-slate-400 text-sm">{prof?.specialty}</div>
                     </div>
                   </div>
 
-                  {/* Notes */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
-                      Motif de consultation (optionnel)
-                    </label>
-                    <textarea
-                      value={bookingNotes}
-                      onChange={(e) => setBookingNotes(e.target.value)}
-                      placeholder="Décrivez brièvement le motif de votre visite..."
-                      className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:border-teal-500"
-                      rows={3}
-                    />
-                  </div>
+                  {/* Step 1: Type selection */}
+                  {bookingStep === 'type' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-400 mb-4">Sélectionnez le type de consultation</p>
+                      {appointmentKinds.length > 0 ? (
+                        appointmentKinds.map((kind) => (
+                          <button
+                            key={kind.id}
+                            onClick={() => setSelectedKind(kind.id)}
+                            className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                              selectedKind === kind.id
+                                ? 'border-teal-500 bg-teal-600/10'
+                                : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium text-white">{kind.label}</div>
+                                <div className="text-sm text-slate-400">
+                                  Durée : {kind.durationMinutes} minutes
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                {kind.price && (
+                                  <div className="text-lg font-bold text-white">{kind.price} €</div>
+                                )}
+                                <div className={`w-5 h-5 rounded-full border-2 ${
+                                  selectedKind === kind.id
+                                    ? 'border-teal-500 bg-teal-500'
+                                    : 'border-slate-500'
+                                }`}>
+                                  {selectedKind === kind.id && (
+                                    <Check className="w-full h-full text-white p-0.5" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 rounded-xl border-2 border-teal-500 bg-teal-600/10">
+                          <div className="font-medium text-white">Consultation standard</div>
+                          <div className="text-sm text-slate-400">Durée : 30 minutes</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Step 2: Details */}
+                  {bookingStep === 'details' && (
+                    <div className="space-y-4">
+                      {/* Doctor info */}
+                      <div className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-xl">
+                        {doctor.avatarUrl ? (
+                          <img
+                            src={doctor.avatarUrl}
+                            alt={doctor.fullName || ''}
+                            className="w-12 h-12 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold text-white">
+                            {getInitials(doctor.fullName)}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-white font-medium">{doctor.fullName}</div>
+                          <div className="text-slate-400 text-sm">{prof?.specialty}</div>
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Motif de consultation
+                        </label>
+                        <textarea
+                          value={bookingNotes}
+                          onChange={(e) => setBookingNotes(e.target.value)}
+                          placeholder="Décrivez brièvement le motif de votre visite (symptômes, questions...)..."
+                          className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:border-teal-500"
+                          rows={4}
+                        />
+                      </div>
+
+                      {/* Quick symptoms */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                          Suggestions rapides
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {['Consultation de suivi', 'Douleur', 'Fièvre', 'Fatigue', 'Bilan de santé', 'Renouvellement ordonnance'].map((symptom) => (
+                            <button
+                              key={symptom}
+                              onClick={() => setBookingNotes(prev => prev ? `${prev}, ${symptom}` : symptom)}
+                              className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
+                            >
+                              {symptom}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Payment */}
+                  {bookingStep === 'payment' && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-400">Choisissez votre mode de paiement</p>
+
+                      {/* Payment methods */}
+                      <div className="space-y-3">
+                        {[
+                          { id: 'card' as const, label: 'Carte bancaire', desc: 'Visa, Mastercard, CB', icon: '💳' },
+                          { id: 'mobile' as const, label: 'Mobile Money', desc: 'Orange Money, MTN, Airtel', icon: '📱' },
+                          { id: 'onsite' as const, label: 'Sur place', desc: 'Paiement au cabinet', icon: '🏥' },
+                        ].map((method) => (
+                          <button
+                            key={method.id}
+                            onClick={() => setPaymentMethod(method.id)}
+                            className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center gap-4 ${
+                              paymentMethod === method.id
+                                ? 'border-teal-500 bg-teal-600/10'
+                                : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                            }`}
+                          >
+                            <span className="text-2xl">{method.icon}</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-white">{method.label}</div>
+                              <div className="text-sm text-slate-400">{method.desc}</div>
+                            </div>
+                            <div className={`w-5 h-5 rounded-full border-2 ${
+                              paymentMethod === method.id
+                                ? 'border-teal-500 bg-teal-500'
+                                : 'border-slate-500'
+                            }`}>
+                              {paymentMethod === method.id && (
+                                <Check className="w-full h-full text-white p-0.5" />
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Card input (if card selected) */}
+                      {paymentMethod === 'card' && (
+                        <div className="p-4 bg-slate-700/50 rounded-xl space-y-3">
+                          <input
+                            type="text"
+                            placeholder="Numéro de carte"
+                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          />
+                          <div className="flex gap-3">
+                            <input
+                              type="text"
+                              placeholder="MM/AA"
+                              className="flex-1 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                            />
+                            <input
+                              type="text"
+                              placeholder="CVV"
+                              className="w-24 px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mobile Money input */}
+                      {paymentMethod === 'mobile' && (
+                        <div className="p-4 bg-slate-700/50 rounded-xl">
+                          <input
+                            type="tel"
+                            placeholder="Numéro de téléphone"
+                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      )}
+
+                      {paymentMethod === 'onsite' && (
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-sm">
+                          Le paiement sera effectué directement au cabinet le jour du rendez-vous.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Step 4: Confirmation */}
+                  {bookingStep === 'confirm' && (
+                    <div className="space-y-4">
+                      <p className="text-sm text-slate-400">Vérifiez les détails de votre réservation</p>
+
+                      {/* Summary */}
+                      <div className="bg-slate-700/50 rounded-xl divide-y divide-slate-700">
+                        <div className="p-4 flex items-center gap-3">
+                          {doctor.avatarUrl ? (
+                            <img src={doctor.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold text-white">
+                              {getInitials(doctor.fullName)}
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-white font-medium">{doctor.fullName}</div>
+                            <div className="text-slate-400 text-sm">{prof?.specialty}</div>
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <div className="text-sm text-slate-400">Type de consultation</div>
+                          <div className="text-white">{getSelectedKindDetails()?.label || 'Consultation standard'}</div>
+                        </div>
+                        {bookingNotes && (
+                          <div className="p-4">
+                            <div className="text-sm text-slate-400">Motif</div>
+                            <div className="text-white">{bookingNotes}</div>
+                          </div>
+                        )}
+                        <div className="p-4">
+                          <div className="text-sm text-slate-400">Paiement</div>
+                          <div className="text-white">
+                            {paymentMethod === 'card' ? '💳 Carte bancaire' :
+                             paymentMethod === 'mobile' ? '📱 Mobile Money' : '🏥 Sur place'}
+                          </div>
+                        </div>
+                        <div className="p-4 flex items-center justify-between">
+                          <div className="text-sm text-slate-400">Total à payer</div>
+                          <div className="text-xl font-bold text-teal-400">{getBookingPrice()} €</div>
+                        </div>
+                      </div>
+
+                      {/* Terms */}
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={(e) => setAcceptedTerms(e.target.checked)}
+                          className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-700 text-teal-600 focus:ring-teal-500"
+                        />
+                        <span className="text-sm text-slate-400">
+                          J'accepte les <a href="#" className="text-teal-400 hover:underline">conditions générales</a> et la <a href="#" className="text-teal-400 hover:underline">politique de confidentialité</a>
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
                   {/* Error */}
                   {bookingError && (
-                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                    <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm mt-4">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                       {bookingError}
                     </div>
@@ -867,15 +1126,39 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
             {!bookingSuccess && (
               <div className="flex gap-3 px-6 py-4 border-t border-slate-700">
                 <button
-                  onClick={closeModal}
+                  onClick={() => {
+                    if (bookingStep === 'type') {
+                      closeModal();
+                    } else if (bookingStep === 'details') {
+                      setBookingStep('type');
+                    } else if (bookingStep === 'payment') {
+                      setBookingStep('details');
+                    } else {
+                      setBookingStep('payment');
+                    }
+                  }}
                   disabled={booking}
                   className="flex-1 px-4 py-3 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 transition-colors disabled:opacity-50"
                 >
-                  Annuler
+                  {bookingStep === 'type' ? 'Annuler' : 'Retour'}
                 </button>
                 <button
-                  onClick={confirmBooking}
-                  disabled={booking}
+                  onClick={() => {
+                    if (bookingStep === 'type') {
+                      setBookingStep('details');
+                    } else if (bookingStep === 'details') {
+                      setBookingStep('payment');
+                    } else if (bookingStep === 'payment') {
+                      setBookingStep('confirm');
+                    } else {
+                      if (!acceptedTerms) {
+                        setBookingError('Veuillez accepter les conditions générales');
+                        return;
+                      }
+                      confirmBooking();
+                    }
+                  }}
+                  disabled={booking || (bookingStep === 'confirm' && !acceptedTerms)}
                   className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {booking ? (
@@ -883,8 +1166,10 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Réservation...
                     </>
+                  ) : bookingStep === 'confirm' ? (
+                    `Payer ${getBookingPrice()} €`
                   ) : (
-                    'Confirmer'
+                    'Continuer'
                   )}
                 </button>
               </div>
