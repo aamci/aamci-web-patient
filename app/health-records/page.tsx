@@ -94,6 +94,7 @@ export default function HealthRecordsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'prescriptions' | 'labs' | 'vaccinations' | 'timeline'>('overview');
+  const [exporting, setExporting] = useState(false);
 
   // Mock data states
   const [vitals, setVitals] = useState<VitalSigns | null>(null);
@@ -343,6 +344,126 @@ export default function HealthRecordsPage() {
     });
   };
 
+  const exportToPDF = async () => {
+    setExporting(true);
+
+    // Generate HTML content for PDF
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Dossier Médical - Export</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; }
+    h1 { color: #0d9488; border-bottom: 2px solid #0d9488; padding-bottom: 10px; }
+    h2 { color: #1f2937; margin-top: 30px; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+    .section { margin-bottom: 30px; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin: 10px 0; }
+    .alert { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; padding: 10px; border-radius: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .vital { text-align: center; padding: 15px; background: #f3f4f6; border-radius: 8px; }
+    .vital-value { font-size: 24px; font-weight: bold; color: #0d9488; }
+    .vital-label { font-size: 12px; color: #6b7280; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { background: #f3f4f6; font-weight: 600; }
+    .status-normal { color: #059669; }
+    .status-high { color: #d97706; }
+    .status-low { color: #3b82f6; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>Dossier Médical</h1>
+  <p>Exporté le ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+
+  ${allergies.length > 0 ? `
+  <div class="alert">
+    <strong>⚠️ Allergies connues:</strong> ${allergies.map(a => `${a.allergen} (${a.severity === 'severe' ? 'Sévère' : a.severity === 'moderate' ? 'Modéré' : 'Léger'})`).join(', ')}
+  </div>
+  ` : ''}
+
+  ${vitals ? `
+  <div class="section">
+    <h2>Constantes Vitales</h2>
+    <p style="font-size: 12px; color: #6b7280;">Dernière mise à jour: ${formatDate(vitals.lastUpdated)}</p>
+    <div class="grid">
+      <div class="vital"><div class="vital-value">${vitals.bloodPressure}</div><div class="vital-label">Tension</div></div>
+      <div class="vital"><div class="vital-value">${vitals.heartRate}</div><div class="vital-label">Pouls (bpm)</div></div>
+      <div class="vital"><div class="vital-value">${vitals.temperature}°C</div><div class="vital-label">Température</div></div>
+      <div class="vital"><div class="vital-value">${vitals.weight} kg</div><div class="vital-label">Poids</div></div>
+      <div class="vital"><div class="vital-value">${vitals.height} cm</div><div class="vital-label">Taille</div></div>
+      <div class="vital"><div class="vital-value">${vitals.bmi}</div><div class="vital-label">IMC</div></div>
+    </div>
+  </div>
+  ` : ''}
+
+  <div class="section">
+    <h2>Ordonnances Actives</h2>
+    ${prescriptions.filter(p => p.status === 'active').map(p => `
+    <div class="card">
+      <strong>${p.medication}</strong><br>
+      <span style="color: #6b7280;">${p.dosage} • ${p.frequency}</span><br>
+      <span style="font-size: 12px;">Prescrit par ${p.doctor} le ${formatDate(p.startDate)}</span>
+    </div>
+    `).join('') || '<p style="color: #6b7280;">Aucune ordonnance active</p>'}
+  </div>
+
+  <div class="section">
+    <h2>Résultats d'Analyses</h2>
+    <table>
+      <thead>
+        <tr><th>Analyse</th><th>Résultat</th><th>Référence</th><th>Statut</th></tr>
+      </thead>
+      <tbody>
+        ${labResults.map(r => `
+        <tr>
+          <td>${r.testName}</td>
+          <td><strong>${r.value}</strong> ${r.unit}</td>
+          <td>${r.referenceRange}</td>
+          <td class="status-${r.status}">${r.status === 'normal' ? 'Normal' : r.status === 'high' ? 'Élevé' : r.status === 'low' ? 'Bas' : 'Critique'}</td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Carnet de Vaccination</h2>
+    ${vaccinations.map(v => `
+    <div class="card">
+      <strong>${v.name}</strong><br>
+      <span style="font-size: 12px;">Administré le ${formatDate(v.date)} par ${v.doctor}</span>
+      ${v.nextDose ? `<br><span style="font-size: 12px; color: #0d9488;">Prochain rappel: ${formatDate(v.nextDose)}</span>` : ''}
+    </div>
+    `).join('')}
+  </div>
+
+  <div class="footer">
+    <p>Document généré automatiquement - Plateforme Santé</p>
+    <p>Ce document est fourni à titre informatif uniquement.</p>
+  </div>
+</body>
+</html>
+    `;
+
+    // Create blob and download
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `dossier-medical-${new Date().toISOString().split('T')[0]}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    // Simulate delay for UX
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setExporting(false);
+  };
+
   const tabs = [
     { id: 'overview' as const, label: 'Vue d\'ensemble', icon: Heart },
     { id: 'prescriptions' as const, label: 'Ordonnances', icon: Pill },
@@ -366,20 +487,34 @@ export default function HealthRecordsPage() {
     <div className="min-h-screen bg-slate-900 pb-8">
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-400" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-              <Heart className="w-7 h-7 text-teal-500" />
-              Mon Dossier Médical
-            </h1>
-            <p className="text-slate-400 text-sm">Consultez votre historique de santé complet</p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-400" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                <Heart className="w-7 h-7 text-teal-500" />
+                Mon Dossier Médical
+              </h1>
+              <p className="text-slate-400 text-sm">Consultez votre historique de santé complet</p>
+            </div>
           </div>
+          <button
+            onClick={exportToPDF}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors disabled:opacity-50"
+          >
+            {exporting ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            {exporting ? 'Export...' : 'Exporter PDF'}
+          </button>
         </div>
 
         {/* Tabs */}
