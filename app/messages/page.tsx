@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/app/_providers/AuthProvider';
 import {
   MessageSquare,
   Search,
@@ -50,6 +51,7 @@ function MessagesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedConvoId = searchParams.get('conversation');
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -62,150 +64,47 @@ function MessagesPageContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const currentUserId = 'current-user'; // Would come from auth
+  const currentUserId = user?.id || '';
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
-  const loadData = useCallback(() => {
-    // Mock conversations
-    const mockConversations: Conversation[] = [
-      {
-        id: 'conv-1',
-        doctorId: 'doc-1',
-        doctorName: 'Dr. Marie Martin',
-        doctorSpecialty: 'Médecine générale',
-        lastMessage: 'N\'hésitez pas à me recontacter si les symptômes persistent.',
-        lastMessageTime: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        unreadCount: 2,
-        isOnline: true,
-        messages: [
-          {
-            id: 'm1',
-            senderId: 'current-user',
-            content: 'Bonjour Docteur, j\'ai des maux de tête depuis 2 jours.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm2',
-            senderId: 'doc-1',
-            content: 'Bonjour ! Pouvez-vous me décrire l\'intensité de la douleur sur une échelle de 1 à 10 ?',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1.5).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm3',
-            senderId: 'current-user',
-            content: 'Je dirais environ 6/10, c\'est lancinant au niveau des tempes.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm4',
-            senderId: 'doc-1',
-            content: 'Je vous conseille de prendre du paracétamol 1000mg et de vous reposer dans un endroit calme et sombre.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm5',
-            senderId: 'doc-1',
-            content: 'N\'hésitez pas à me recontacter si les symptômes persistent.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-            read: false,
-            type: 'text',
-          },
-        ],
-      },
-      {
-        id: 'conv-2',
-        doctorId: 'doc-2',
-        doctorName: 'Dr. Jean Dubois',
-        doctorSpecialty: 'Cardiologie',
-        lastMessage: 'Votre prochain rendez-vous est confirmé pour le 20 janvier.',
-        lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        unreadCount: 0,
-        isOnline: false,
-        messages: [
-          {
-            id: 'm6',
-            senderId: 'doc-2',
-            content: 'Bonjour, suite à votre dernier bilan, je souhaiterais vous voir pour un suivi.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm7',
-            senderId: 'current-user',
-            content: 'Bien sûr, quand seriez-vous disponible ?',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm8',
-            senderId: 'doc-2',
-            content: 'Votre prochain rendez-vous est confirmé pour le 20 janvier.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-            read: true,
-            type: 'text',
-          },
-        ],
-      },
-      {
-        id: 'conv-3',
-        doctorId: 'doc-3',
-        doctorName: 'Dr. Sophie Lambert',
-        doctorSpecialty: 'Dermatologie',
-        lastMessage: 'Merci pour les photos, je vais analyser cela.',
-        lastMessageTime: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-        unreadCount: 0,
-        isOnline: true,
-        messages: [
-          {
-            id: 'm9',
-            senderId: 'current-user',
-            content: 'Bonjour, j\'ai une irritation cutanée qui ne part pas.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm10',
-            senderId: 'doc-3',
-            content: 'Pouvez-vous m\'envoyer une photo de la zone concernée ?',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 80).toISOString(),
-            read: true,
-            type: 'text',
-          },
-          {
-            id: 'm11',
-            senderId: 'doc-3',
-            content: 'Merci pour les photos, je vais analyser cela.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-            read: true,
-            type: 'text',
-          },
-        ],
-      },
-    ];
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${apiBaseUrl}/messages/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    setConversations(mockConversations);
+      if (response.ok) {
+        const data = await response.json();
+        const mapped: Conversation[] = data.map((conv: any) => ({
+          id: conv.id,
+          doctorId: conv.otherParticipant?.id || '',
+          doctorName: conv.otherParticipant?.fullName || 'Médecin',
+          doctorSpecialty: conv.otherParticipant?.doctorProfile?.specialty || '',
+          doctorAvatar: conv.otherParticipant?.avatarUrl,
+          lastMessage: conv.lastMessage,
+          lastMessageTime: conv.lastMessageTime,
+          unreadCount: conv.unreadCount || 0,
+          isOnline: false,
+          messages: [],
+        }));
+        setConversations(mapped);
 
-    // Select conversation from URL param
-    if (selectedConvoId) {
-      const convo = mockConversations.find(c => c.id === selectedConvoId);
-      if (convo) {
-        setSelectedConversation(convo);
-        setShowMobileList(false);
+        if (selectedConvoId) {
+          const convo = mapped.find((c: Conversation) => c.id === selectedConvoId);
+          if (convo) {
+            setSelectedConversation(convo);
+            setShowMobileList(false);
+          }
+        }
       }
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  }, [selectedConvoId]);
+  }, [apiBaseUrl, selectedConvoId]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -224,16 +123,44 @@ function MessagesPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const selectConversation = (convo: Conversation) => {
+  const selectConversation = async (convo: Conversation) => {
     setSelectedConversation(convo);
     setShowMobileList(false);
-    // Mark as read
-    setConversations(prev => prev.map(c =>
-      c.id === convo.id ? { ...c, unreadCount: 0 } : c
-    ));
-    // Update URL
     router.push(`/messages?conversation=${convo.id}`, { scroll: false });
-    // Focus input
+
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Load messages for this conversation
+      const res = await fetch(`${apiBaseUrl}/messages/conversations/${convo.id}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const msgs: Message[] = (data || []).map((m: any) => ({
+          id: m.id,
+          senderId: m.senderId,
+          content: m.content,
+          timestamp: m.createdAt,
+          read: m.read,
+          type: m.type?.toLowerCase() || 'text',
+        }));
+
+        const updated = { ...convo, messages: msgs, unreadCount: 0 };
+        setSelectedConversation(updated);
+        setConversations(prev => prev.map(c =>
+          c.id === convo.id ? { ...c, unreadCount: 0 } : c
+        ));
+      }
+
+      // Mark as read
+      await fetch(`${apiBaseUrl}/messages/conversations/${convo.id}/read`, {
+        method: 'POST',
+        headers,
+      });
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
+
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -241,34 +168,56 @@ function MessagesPageContent() {
     if (!newMessage.trim() || !selectedConversation) return;
 
     setSending(true);
-    const message: Message = {
-      id: `m-${Date.now()}`,
-      senderId: currentUserId,
-      content: newMessage.trim(),
-      timestamp: new Date().toISOString(),
-      read: false,
-      type: 'text',
-    };
-
-    // Add message to conversation
-    setConversations(prev => prev.map(c =>
-      c.id === selectedConversation.id
-        ? {
-            ...c,
-            messages: [...c.messages, message],
-            lastMessage: message.content,
-            lastMessageTime: message.timestamp,
-          }
-        : c
-    ));
-
-    setSelectedConversation(prev => prev ? {
-      ...prev,
-      messages: [...prev.messages, message],
-    } : null);
-
+    const content = newMessage.trim();
     setNewMessage('');
-    setSending(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/messages/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          receiverId: selectedConversation.doctorId,
+          content,
+        }),
+      });
+
+      if (res.ok) {
+        const sent = await res.json();
+        const message: Message = {
+          id: sent.id,
+          senderId: currentUserId,
+          content: sent.content,
+          timestamp: sent.createdAt,
+          read: false,
+          type: 'text',
+        };
+
+        setConversations(prev => prev.map(c =>
+          c.id === selectedConversation.id
+            ? {
+                ...c,
+                messages: [...c.messages, message],
+                lastMessage: message.content,
+                lastMessageTime: message.timestamp,
+              }
+            : c
+        ));
+
+        setSelectedConversation(prev => prev ? {
+          ...prev,
+          messages: [...prev.messages, message],
+        } : null);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setNewMessage(content);
+    } finally {
+      setSending(false);
+    }
   };
 
   const formatTime = (timestamp: string) => {

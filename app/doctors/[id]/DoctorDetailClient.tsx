@@ -78,6 +78,14 @@ const DAYS_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 const DAYS_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
+/** Generate a YYYY-MM-DD key using local timezone (not UTC) */
+function toLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -150,11 +158,18 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
         });
         setSlots(availableSlots);
 
-        // Fetch appointment kinds
-        const kindsUrl = apiBase ? `${apiBase}/appointment-kinds?doctorId=${doctorId}` : `/appointment-kinds?doctorId=${doctorId}`;
+        // Fetch appointment kinds (public endpoint)
+        const kindsUrl = apiBase ? `${apiBase}/appointment-kinds/doctor/${doctorId}` : `/appointment-kinds/doctor/${doctorId}`;
         const kindsRes = await fetch(kindsUrl, { cache: 'no-store' });
         const kindsData = await kindsRes.json().catch(() => []);
-        const kindsList: AppointmentKind[] = Array.isArray(kindsData) ? kindsData : kindsData?.data || [];
+        const rawKinds = Array.isArray(kindsData) ? kindsData : kindsData?.data || [];
+        const kindsList: AppointmentKind[] = rawKinds.map((k: any) => ({
+          id: k.id,
+          label: k.name || k.label || 'Consultation',
+          durationMinutes: k.durationMins || k.durationMinutes || 30,
+          price: k.price ?? null,
+          color: k.color ?? null,
+        }));
         setAppointmentKinds(kindsList);
         if (kindsList.length > 0) {
           setSelectedKind(kindsList[0].id);
@@ -207,7 +222,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
     for (const slot of slots) {
       const date = new Date(slot.start);
-      const dayKey = date.toISOString().split('T')[0];
+      const dayKey = toLocalDateKey(date);
       const hourKey = date.toTimeString().substring(0, 5);
 
       if (!grid[dayKey]) grid[dayKey] = {};
@@ -610,7 +625,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                             {hour}
                           </td>
                           {weekDates.map((date, idx) => {
-                            const dayKey = date.toISOString().split('T')[0];
+                            const dayKey = toLocalDateKey(date);
                             const slot = slotsGrid.grid[dayKey]?.[hour];
                             const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
 

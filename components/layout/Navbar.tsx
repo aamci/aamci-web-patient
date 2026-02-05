@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Activity,
   Star,
+  MessageSquare,
 } from 'lucide-react';
 import NotificationBell from '@/components/NotificationBell';
 
@@ -25,6 +26,7 @@ const navLinks = [
   { href: '/doctors' as const, label: 'Médecins', icon: Search },
   { href: '/appointments' as const, label: 'Rendez-vous', icon: Calendar },
   { href: '/health-records' as const, label: 'Dossier médical', icon: Activity },
+  { href: '/messages' as const, label: 'Messages', icon: MessageSquare },
   { href: '/favorites' as const, label: 'Favoris', icon: Heart },
   { href: '/facilities' as const, label: 'Établissements', icon: Building2 },
 ];
