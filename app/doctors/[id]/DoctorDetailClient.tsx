@@ -143,20 +143,12 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           });
         }
 
-        // Fetch slots
-        const slotsUrl = apiBase ? `${apiBase}/slots?ownerId=${doctorId}` : `/slots?ownerId=${doctorId}`;
+        // Fetch available slots (generated from doctor's AvailabilityRules)
+        const slotsUrl = apiBase ? `${apiBase}/slots/available/${doctorId}` : `/slots/available/${doctorId}`;
         const slotsRes = await fetch(slotsUrl, { cache: 'no-store' });
         const slotsData = await slotsRes.json().catch(() => []);
         const slotsList: Slot[] = Array.isArray(slotsData) ? slotsData : slotsData?.data || [];
-
-        // Filter available slots
-        const availableSlots = slotsList.filter((s) => {
-          const taken = Array.isArray(s.appointments) && s.appointments.length > 0;
-          const notActive = s.status && s.status !== 'ACTIVE';
-          const inPast = new Date(s.start) < new Date();
-          return !taken && !notActive && !inPast;
-        });
-        setSlots(availableSlots);
+        setSlots(slotsList);
 
         // Fetch appointment kinds (public endpoint)
         const kindsUrl = apiBase ? `${apiBase}/appointment-kinds/doctor/${doctorId}` : `/appointment-kinds/doctor/${doctorId}`;
@@ -292,9 +284,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          slotId: selectedSlot.id,
+          // Les créneaux sont générés à la volée depuis les rules,
+          // on envoie start/end pour créer le slot au moment de la réservation
+          slotStart: selectedSlot.start,
+          slotEnd: selectedSlot.end,
           kindId: selectedKind || undefined,
           notes: bookingNotes || `RDV avec ${doctor?.fullName || 'le médecin'}`,
+          doctorId: doctorId,
         }),
       });
 
