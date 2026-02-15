@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/_providers/AuthProvider';
 import {
@@ -36,7 +36,30 @@ export default function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+
+  const fetchUnreadMessages = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/messages/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadMessages(data.count || 0);
+      }
+    } catch { /* silent */ }
+  }, [user, apiBaseUrl]);
+
+  useEffect(() => {
+    fetchUnreadMessages();
+    const interval = setInterval(fetchUnreadMessages, 30000);
+    return () => clearInterval(interval);
+  }, [fetchUnreadMessages]);
 
   // Fermer le dropdown si clic en dehors
   useEffect(() => {
@@ -92,12 +115,13 @@ export default function Navbar() {
           <nav className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const showBadge = link.href === '/messages' && unreadMessages > 0;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={`
-                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
                     ${isActive
                       ? 'bg-teal-600 text-white'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -106,6 +130,11 @@ export default function Navbar() {
                 >
                   <link.icon className="w-4 h-4" />
                   {link.label}
+                  {showBadge && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -231,6 +260,7 @@ export default function Navbar() {
           <nav className="px-4 py-3 space-y-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
+              const showBadge = link.href === '/messages' && unreadMessages > 0;
               return (
                 <Link
                   key={link.href}
@@ -245,6 +275,11 @@ export default function Navbar() {
                 >
                   <link.icon className="w-5 h-5" />
                   {link.label}
+                  {showBadge && (
+                    <span className="ml-auto min-w-[20px] h-[20px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                      {unreadMessages > 9 ? '9+' : unreadMessages}
+                    </span>
+                  )}
                 </Link>
               );
             })}

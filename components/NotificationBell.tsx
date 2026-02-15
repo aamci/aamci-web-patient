@@ -29,7 +29,7 @@ interface Notification {
   createdAt: string;
 }
 
-type NotificationFilter = 'all' | 'unread' | 'appointments';
+type NotificationFilter = 'all' | 'unread' | 'appointments' | 'messages';
 
 export default function NotificationBell() {
   const router = useRouter();
@@ -67,34 +67,6 @@ export default function NotificationBell() {
 
     if (data && Array.isArray(data)) {
       setNotifications(data);
-    } else {
-      // Mock data for development
-      setNotifications([
-        {
-          id: '1',
-          type: 'APPOINTMENT_REMINDER',
-          title: 'Rappel de rendez-vous',
-          message: 'Votre rendez-vous avec Dr. Martin est demain à 10h00',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        },
-        {
-          id: '2',
-          type: 'APPOINTMENT_CONFIRMED',
-          title: 'Rendez-vous confirmé',
-          message: 'Votre rendez-vous du 15 janvier a été confirmé',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-        },
-        {
-          id: '3',
-          type: 'PRESCRIPTION_READY',
-          title: 'Ordonnance disponible',
-          message: 'Votre ordonnance est prête à être téléchargée',
-          read: true,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        },
-      ]);
     }
     setLoading(false);
   }, [authedFetch]);
@@ -122,7 +94,7 @@ export default function NotificationBell() {
   };
 
   const markAllAsRead = async () => {
-    await authedFetch('/notifications/read-all', { method: 'PATCH' });
+    await authedFetch('/notifications/mark-all-read', { method: 'PATCH' });
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
@@ -171,6 +143,7 @@ export default function NotificationBell() {
   const filteredNotifications = notifications.filter(n => {
     if (filter === 'unread') return !n.read;
     if (filter === 'appointments') return n.type.includes('APPOINTMENT');
+    if (filter === 'messages') return n.type === 'NEW_MESSAGE';
     return true;
   });
 
@@ -178,6 +151,7 @@ export default function NotificationBell() {
     { value: 'all', label: 'Toutes' },
     { value: 'unread', label: 'Non lues' },
     { value: 'appointments', label: 'RDV' },
+    { value: 'messages', label: 'Messages' },
   ];
 
   return (
@@ -250,7 +224,17 @@ export default function NotificationBell() {
               filteredNotifications.slice(0, 5).map(notification => (
                 <div
                   key={notification.id}
-                  className={`px-4 py-3 border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors ${
+                  onClick={() => {
+                    if (!notification.read) markAsRead(notification.id);
+                    if (notification.type === 'NEW_MESSAGE') {
+                      router.push('/messages');
+                      setIsOpen(false);
+                    } else if (notification.type.includes('APPOINTMENT')) {
+                      router.push('/appointments');
+                      setIsOpen(false);
+                    }
+                  }}
+                  className={`px-4 py-3 border-b border-slate-700/50 hover:bg-slate-700/50 transition-colors cursor-pointer ${
                     !notification.read ? 'bg-teal-900/20' : ''
                   }`}
                 >
@@ -278,7 +262,7 @@ export default function NotificationBell() {
                       <div className="flex items-center gap-3 mt-2">
                         {!notification.read && (
                           <button
-                            onClick={() => markAsRead(notification.id)}
+                            onClick={(e) => { e.stopPropagation(); markAsRead(notification.id); }}
                             className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1"
                           >
                             <Check className="w-3 h-3" />
@@ -286,7 +270,7 @@ export default function NotificationBell() {
                           </button>
                         )}
                         <button
-                          onClick={() => deleteNotification(notification.id)}
+                          onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
                           className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" />
