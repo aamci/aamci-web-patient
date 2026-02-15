@@ -21,6 +21,7 @@ import {
   RefreshCw,
   X,
   ChevronLeft,
+  Loader2,
 } from 'lucide-react';
 
 interface Message {
@@ -59,6 +60,7 @@ function MessagesPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [showMobileList, setShowMobileList] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -126,6 +128,7 @@ function MessagesPageContent() {
   const selectConversation = async (convo: Conversation) => {
     setSelectedConversation(convo);
     setShowMobileList(false);
+    setLoadingMessages(true);
     router.push(`/messages?conversation=${convo.id}`, { scroll: false });
 
     try {
@@ -159,6 +162,8 @@ function MessagesPageContent() {
       });
     } catch (error) {
       console.error('Error loading messages:', error);
+    } finally {
+      setLoadingMessages(false);
     }
 
     setTimeout(() => inputRef.current?.focus(), 100);
@@ -390,7 +395,19 @@ function MessagesPageContent() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {selectedConversation.messages.map((msg, idx) => {
+                  {loadingMessages ? (
+                    <div className="flex flex-col items-center justify-center h-full">
+                      <Loader2 className="w-8 h-8 text-teal-500 animate-spin mb-3" />
+                      <p className="text-sm text-slate-400">Chargement des messages...</p>
+                    </div>
+                  ) : selectedConversation.messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full">
+                      <MessageSquare className="w-10 h-10 text-slate-600 mb-3" />
+                      <p className="text-sm text-slate-400">Aucun message pour le moment</p>
+                      <p className="text-xs text-slate-500 mt-1">Envoyez le premier message</p>
+                    </div>
+                  ) : null}
+                  {!loadingMessages && selectedConversation.messages.map((msg, idx) => {
                     const isMe = msg.senderId === currentUserId;
                     const showAvatar = !isMe && (
                       idx === 0 ||
