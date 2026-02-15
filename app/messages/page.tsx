@@ -180,7 +180,7 @@ function MessagesPageContent() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          receiverId: selectedConversation.doctorId,
+          recipientId: selectedConversation.doctorId,
           content,
         }),
       });
