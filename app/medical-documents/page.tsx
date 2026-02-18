@@ -491,11 +491,13 @@ function UploadModal({
   const [fileType, setFileType] = useState('');
   const [fileSize, setFileSize] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     if (!fileUrl || !fileName) {
-      alert('Veuillez entrer l\'URL du fichier');
+      setError('Veuillez entrer l\'URL du fichier et un nom');
       return;
     }
 
@@ -527,11 +529,11 @@ function UploadModal({
         const newDoc = await res.json();
         onSuccess(newDoc);
       } else {
-        alert('Erreur lors de l\'ajout du document');
+        setError('Erreur lors de l\'ajout du document');
       }
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      alert('Erreur lors de l\'ajout du document');
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      setError('Erreur lors de l\'ajout du document');
     } finally {
       setLoading(false);
     }
@@ -564,6 +566,11 @@ function UploadModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
               URL du fichier *

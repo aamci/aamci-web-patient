@@ -70,57 +70,52 @@ export default function ReviewsPage() {
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
-  const loadData = useCallback(() => {
-    // Mock pending reviews (appointments without reviews)
-    setPendingReviews([
-      {
-        appointmentId: 'apt-1',
-        doctorId: 'doc-1',
-        doctorName: 'Dr. Marie Martin',
-        doctorSpecialty: 'Médecine générale',
-        appointmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-      },
-      {
-        appointmentId: 'apt-2',
-        doctorId: 'doc-2',
-        doctorName: 'Dr. Jean Dubois',
-        doctorSpecialty: 'Cardiologie',
-        appointmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-      },
-    ]);
+  const loadData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
 
-    // Mock submitted reviews
-    setReviews([
-      {
-        id: 'rev-1',
-        doctorId: 'doc-3',
-        doctorName: 'Dr. Sophie Lambert',
-        doctorSpecialty: 'Dermatologie',
-        appointmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-        rating: 5,
-        comment: 'Excellente consultation. Le Dr. Lambert est très professionnelle et à l\'écoute. Je recommande vivement.',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 28).toISOString(),
-        isPublic: true,
-        response: {
-          text: 'Merci beaucoup pour votre retour ! Je suis ravie que la consultation vous ait satisfait.',
-          date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 27).toISOString(),
-        },
-      },
-      {
-        id: 'rev-2',
-        doctorId: 'doc-4',
-        doctorName: 'Dr. Pierre Moreau',
-        doctorSpecialty: 'Médecine générale',
-        appointmentDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(),
-        rating: 4,
-        comment: 'Bon médecin, consultation efficace. Un peu d\'attente mais rien de grave.',
-        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 58).toISOString(),
-        isPublic: true,
-      },
-    ]);
+      const [pendingRes, myReviewsRes] = await Promise.all([
+        fetch(`${apiBaseUrl}/reviews/pending`, { headers }),
+        fetch(`${apiBaseUrl}/reviews/my-reviews`, { headers }),
+      ]);
 
-    setLoading(false);
-  }, []);
+      if (pendingRes.ok) {
+        const data = await pendingRes.json();
+        setPendingReviews((data || []).map((p: any) => ({
+          appointmentId: p.appointmentId || p.id,
+          doctorId: p.doctorId || p.doctor?.userId || '',
+          doctorName: p.doctorName || p.doctor?.user?.fullName || 'Médecin',
+          doctorSpecialty: p.doctorSpecialty || p.doctor?.specialty || '',
+          doctorAvatar: p.doctorAvatar || p.doctor?.user?.avatarUrl,
+          appointmentDate: p.appointmentDate || p.date || p.createdAt,
+        })));
+      }
+
+      if (myReviewsRes.ok) {
+        const data = await myReviewsRes.json();
+        setReviews((data || []).map((r: any) => ({
+          id: r.id,
+          doctorId: r.doctorProfileId || r.doctorId || '',
+          doctorName: r.doctorProfile?.user?.fullName || r.doctorName || 'Médecin',
+          doctorSpecialty: r.doctorProfile?.specialty || r.doctorSpecialty || '',
+          doctorAvatar: r.doctorProfile?.user?.avatarUrl,
+          appointmentId: r.appointmentId,
+          appointmentDate: r.appointment?.slot?.start || r.appointmentDate,
+          rating: r.overallRating || r.rating || 0,
+          comment: r.comment || '',
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          isPublic: r.isPublic ?? true,
+          response: r.doctorResponse ? { text: r.doctorResponse, date: r.doctorRespondedAt } : undefined,
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -151,29 +146,31 @@ export default function ReviewsPage() {
     if (!selectedPending || submitRating === 0) return;
 
     setSubmitting(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          doctorId: selectedPending.doctorId,
+          appointmentId: selectedPending.appointmentId,
+          overallRating: submitRating,
+          comment: submitComment,
+          isPublic: submitIsPublic,
+        }),
+      });
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const newReview: Review = {
-      id: `rev-${Date.now()}`,
-      doctorId: selectedPending.doctorId,
-      doctorName: selectedPending.doctorName,
-      doctorSpecialty: selectedPending.doctorSpecialty,
-      doctorAvatar: selectedPending.doctorAvatar,
-      appointmentId: selectedPending.appointmentId,
-      appointmentDate: selectedPending.appointmentDate,
-      rating: submitRating,
-      comment: submitComment,
-      createdAt: new Date().toISOString(),
-      isPublic: submitIsPublic,
-    };
-
-    setReviews(prev => [newReview, ...prev]);
-    setPendingReviews(prev => prev.filter(p => p.appointmentId !== selectedPending.appointmentId));
-    setShowSubmitModal(false);
-    setSubmitting(false);
-    setActiveTab('submitted');
+      if (res.ok) {
+        setPendingReviews(prev => prev.filter(p => p.appointmentId !== selectedPending.appointmentId));
+        setShowSubmitModal(false);
+        setActiveTab('submitted');
+        loadData();
+      }
+    } catch (error) {
+      console.error('Error submitting review:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const startEditReview = (review: Review) => {
@@ -185,17 +182,46 @@ export default function ReviewsPage() {
   const saveEditReview = async () => {
     if (!editingReview) return;
 
-    setReviews(prev => prev.map(r =>
-      r.id === editingReview.id
-        ? { ...r, rating: editRating, comment: editComment, updatedAt: new Date().toISOString() }
-        : r
-    ));
-    setEditingReview(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/reviews/${editingReview.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          overallRating: editRating,
+          comment: editComment,
+        }),
+      });
+
+      if (res.ok) {
+        setReviews(prev => prev.map(r =>
+          r.id === editingReview.id
+            ? { ...r, rating: editRating, comment: editComment, updatedAt: new Date().toISOString() }
+            : r
+        ));
+        setEditingReview(null);
+      }
+    } catch (error) {
+      console.error('Error updating review:', error);
+    }
   };
 
   const deleteReview = async (reviewId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cet avis ?')) return;
-    setReviews(prev => prev.filter(r => r.id !== reviewId));
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/reviews/${reviewId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        setReviews(prev => prev.filter(r => r.id !== reviewId));
+      }
+    } catch (error) {
+      console.error('Error deleting review:', error);
+    }
   };
 
   const getInitials = (name: string) => {

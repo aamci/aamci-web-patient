@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Heart, Loader2 } from 'lucide-react';
 
 interface FavoriteButtonProps {
@@ -20,6 +21,7 @@ function getApiBase(): string {
 }
 
 export default function FavoriteButton({ doctorId, size = 'md', showCount = false }: FavoriteButtonProps) {
+  const router = useRouter();
   const [isFavorite, setIsFavorite] = useState(false);
   const [loading, setLoading] = useState(false);
   const [count, setCount] = useState(0);
@@ -72,7 +74,7 @@ export default function FavoriteButton({ doctorId, size = 'md', showCount = fals
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('Veuillez vous connecter pour ajouter des favoris');
+      router.push('/auth/login');
       return;
     }
 

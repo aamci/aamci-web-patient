@@ -106,198 +106,126 @@ export default function HealthRecordsPage() {
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
-  const loadMockData = useCallback(() => {
-    // Mock vitals
-    setVitals({
-      bloodPressure: '120/80',
-      heartRate: 72,
-      temperature: 36.6,
-      weight: 70,
-      height: 175,
-      bmi: 22.9,
-      lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-    });
+  const loadData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
 
-    // Mock prescriptions
-    setPrescriptions([
-      {
-        id: '1',
-        medication: 'Paracétamol 1000mg',
-        dosage: '1 comprimé',
-        frequency: '3 fois par jour',
-        startDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-        endDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5).toISOString(),
-        doctor: 'Dr. Martin',
-        status: 'active',
-        refillsRemaining: 2,
-      },
-      {
-        id: '2',
-        medication: 'Oméprazole 20mg',
-        dosage: '1 gélule',
-        frequency: 'Le matin à jeun',
-        startDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-        doctor: 'Dr. Dubois',
-        status: 'active',
-        refillsRemaining: 5,
-      },
-      {
-        id: '3',
-        medication: 'Amoxicilline 500mg',
-        dosage: '1 comprimé',
-        frequency: '2 fois par jour',
-        startDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
-        endDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 13).toISOString(),
-        doctor: 'Dr. Martin',
-        status: 'completed',
-      },
-    ]);
+      const res = await fetch(`${apiBaseUrl}/health-records/me/full`, { headers });
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
 
-    // Mock lab results
-    setLabResults([
-      {
-        id: '1',
-        testName: 'Glycémie à jeun',
-        value: '0.95',
-        unit: 'g/L',
-        referenceRange: '0.70 - 1.10',
-        status: 'normal',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        trend: 'stable',
-      },
-      {
-        id: '2',
-        testName: 'Cholestérol total',
-        value: '2.35',
-        unit: 'g/L',
-        referenceRange: '< 2.00',
-        status: 'high',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        trend: 'up',
-      },
-      {
-        id: '3',
-        testName: 'Hémoglobine',
-        value: '14.2',
-        unit: 'g/dL',
-        referenceRange: '12.0 - 16.0',
-        status: 'normal',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        trend: 'stable',
-      },
-      {
-        id: '4',
-        testName: 'Créatinine',
-        value: '85',
-        unit: 'µmol/L',
-        referenceRange: '60 - 110',
-        status: 'normal',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        trend: 'down',
-      },
-      {
-        id: '5',
-        testName: 'TSH',
-        value: '2.1',
-        unit: 'mUI/L',
-        referenceRange: '0.4 - 4.0',
-        status: 'normal',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-        trend: 'stable',
-      },
-    ]);
+      // Map vitals from biometric measurements
+      const measurements = data.vitals?.recentMeasurements || [];
+      const findMeasurement = (type: string) => measurements.find((m: any) => m.type === type);
+      const bp = findMeasurement('BLOOD_PRESSURE');
+      const hr = findMeasurement('HEART_RATE');
+      const temp = findMeasurement('TEMPERATURE');
+      const weight = findMeasurement('WEIGHT');
+      const height = findMeasurement('HEIGHT');
+      const w = weight?.value || data.vitals?.weightKg;
+      const h = height?.value || data.vitals?.heightCm;
 
-    // Mock vaccinations
-    setVaccinations([
-      {
-        id: '1',
-        name: 'COVID-19 (Pfizer)',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 180).toISOString(),
-        nextDose: new Date(Date.now() + 1000 * 60 * 60 * 24 * 180).toISOString(),
-        doctor: 'Dr. Lambert',
-        batchNumber: 'EL0140',
-      },
-      {
-        id: '2',
-        name: 'Grippe saisonnière',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(),
-        doctor: 'Dr. Martin',
-        batchNumber: 'FL2023-01',
-      },
-      {
-        id: '3',
-        name: 'Tétanos (rappel)',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 365 * 2).toISOString(),
-        nextDose: new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 8).toISOString(),
-        doctor: 'Dr. Dubois',
-      },
-    ]);
+      if (w || h || bp || hr || temp) {
+        setVitals({
+          bloodPressure: bp ? `${bp.value}/${bp.valueSecondary}` : '-',
+          heartRate: hr?.value || 0,
+          temperature: temp?.value || 0,
+          weight: w || 0,
+          height: h || 0,
+          bmi: w && h ? Math.round((w / ((h / 100) ** 2)) * 10) / 10 : 0,
+          lastUpdated: measurements[0]?.measuredAt || new Date().toISOString(),
+        });
+      }
 
-    // Mock allergies
-    setAllergies([
-      {
-        id: '1',
-        allergen: 'Pénicilline',
-        severity: 'severe',
-        reaction: 'Éruption cutanée, difficulté respiratoire',
-        diagnosedDate: '2015-03-15',
-      },
-      {
-        id: '2',
-        allergen: 'Arachides',
-        severity: 'moderate',
-        reaction: 'Urticaire',
-        diagnosedDate: '2010-06-20',
-      },
-    ]);
+      // Map treatments as prescriptions
+      const treatments = data.treatments || [];
+      setPrescriptions(treatments.map((t: any) => ({
+        id: t.id,
+        medication: t.medicationName || t.name || 'Traitement',
+        dosage: t.dosage || '',
+        frequency: t.frequency || '',
+        startDate: t.startDate || t.createdAt,
+        endDate: t.endDate,
+        doctor: t.prescribedBy?.fullName || 'Médecin',
+        status: t.status === 'ACTIVE' ? 'active' : t.status === 'COMPLETED' ? 'completed' : 'cancelled',
+        refillsRemaining: t.refillsRemaining,
+      })));
 
-    // Mock timeline
-    setTimeline([
-      {
-        id: '1',
-        type: 'consultation',
-        title: 'Consultation générale',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-        doctor: 'Dr. Martin',
-        specialty: 'Médecine générale',
-        summary: 'Bilan de santé annuel. Tout est normal.',
-      },
-      {
-        id: '2',
-        type: 'lab_result',
-        title: 'Bilan sanguin complet',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-        summary: '5 analyses effectuées',
-        status: 'warning',
-      },
-      {
-        id: '3',
-        type: 'prescription',
-        title: 'Nouvelle ordonnance',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-        doctor: 'Dr. Martin',
-        summary: 'Paracétamol 1000mg',
-      },
-      {
-        id: '4',
-        type: 'vaccination',
-        title: 'Vaccination grippe',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(),
-        doctor: 'Dr. Martin',
-      },
-      {
-        id: '5',
-        type: 'consultation',
-        title: 'Consultation gastro-entérologie',
-        date: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
-        doctor: 'Dr. Dubois',
-        specialty: 'Gastro-entérologie',
-        summary: 'Suivi reflux gastrique',
-      },
-    ]);
+      // Map lab results
+      const labs = data.labResults || [];
+      setLabResults(labs.map((r: any) => ({
+        id: r.id,
+        testName: r.testName,
+        value: r.value,
+        unit: r.unit || '',
+        referenceRange: r.normalRange || '-',
+        status: r.isAbnormal ? 'high' : 'normal',
+        date: r.resultDate || r.createdAt,
+        trend: 'stable' as const,
+      })));
 
-    setLoading(false);
-  }, []);
+      // Map vaccinations
+      const vaccs = data.vaccinations || [];
+      setVaccinations(vaccs.map((v: any) => ({
+        id: v.id,
+        name: v.vaccineName,
+        date: v.administeredAt || v.createdAt,
+        nextDose: v.nextDoseAt,
+        doctor: v.administeredBy || 'Médecin',
+        batchNumber: v.lotNumber,
+      })));
+
+      // Map allergies from health record
+      const allergyList: string[] = data.allergies || [];
+      setAllergies(allergyList.map((a: string, i: number) => ({
+        id: `allergy-${i}`,
+        allergen: a,
+        severity: 'moderate' as const,
+        reaction: '',
+        diagnosedDate: '',
+      })));
+
+      // Also check medical history for allergy entries
+      const historyAllergies = (data.medicalHistory || []).filter((h: any) => h.category === 'ALLERGY');
+      if (historyAllergies.length > 0) {
+        setAllergies(prev => [
+          ...prev,
+          ...historyAllergies.map((h: any) => ({
+            id: h.id,
+            allergen: h.title || h.description,
+            severity: (h.severity === 'SEVERE' ? 'severe' : h.severity === 'MODERATE' ? 'moderate' : 'mild') as 'severe' | 'moderate' | 'mild',
+            reaction: h.description || '',
+            diagnosedDate: h.diagnosedAt || '',
+          })),
+        ]);
+      }
+
+      // Build timeline from all data
+      const timelineItems: HealthRecord[] = [];
+      labs.forEach((r: any) => timelineItems.push({
+        id: `lab-${r.id}`, type: 'lab_result', title: r.testName,
+        date: r.resultDate || r.createdAt, summary: `${r.value} ${r.unit || ''}`,
+        status: r.isAbnormal ? 'warning' : 'normal',
+      }));
+      vaccs.forEach((v: any) => timelineItems.push({
+        id: `vac-${v.id}`, type: 'vaccination', title: v.vaccineName,
+        date: v.administeredAt || v.createdAt, doctor: v.administeredBy,
+      }));
+      treatments.forEach((t: any) => timelineItems.push({
+        id: `rx-${t.id}`, type: 'prescription', title: t.medicationName || 'Traitement',
+        date: t.startDate || t.createdAt, doctor: t.prescribedBy?.fullName,
+        summary: `${t.dosage || ''} ${t.frequency || ''}`.trim(),
+      }));
+      timelineItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTimeline(timelineItems);
+
+    } catch (error) {
+      console.error('Error loading health records:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBaseUrl]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -305,8 +233,8 @@ export default function HealthRecordsPage() {
       router.push('/auth/login');
       return;
     }
-    loadMockData();
-  }, [router, loadMockData]);
+    loadData();
+  }, [router, loadData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -459,8 +387,6 @@ export default function HealthRecordsPage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    // Simulate delay for UX
-    await new Promise(resolve => setTimeout(resolve, 500));
     setExporting(false);
   };
 

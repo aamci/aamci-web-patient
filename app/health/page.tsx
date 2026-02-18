@@ -3,7 +3,6 @@ import { CheckCircle, Server, Clock } from 'lucide-react';
 export const dynamic = "force-dynamic";
 
 export default function HealthPage() {
-  console.log('Rendering HealthPage: ', process.env.NEXT_PUBLIC_API_BASE_URL);
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">

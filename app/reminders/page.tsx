@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
@@ -97,6 +97,42 @@ export default function RemindersPage() {
   const [upcomingReminders, setUpcomingReminders] = useState<UpcomingReminder[]>([]);
   const [activeTab, setActiveTab] = useState<'settings' | 'upcoming'>('settings');
 
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+
+  const fetchUpcomingReminders = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch(`${apiBaseUrl}/appointments?status=CONFIRMED&status=PENDING`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) {
+        const appointments = await res.json();
+        const now = new Date();
+        const upcoming = (Array.isArray(appointments) ? appointments : [])
+          .filter((apt: any) => new Date(apt.slot?.start || apt.date) > now)
+          .slice(0, 10)
+          .map((apt: any) => ({
+            id: apt.id,
+            type: 'appointment' as const,
+            title: `RDV - ${apt.doctor?.user?.fullName || apt.doctorName || 'Médecin'}`,
+            description: `${apt.appointmentKind?.name || apt.reason || 'Consultation'} - ${new Date(apt.slot?.start || apt.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+            scheduledFor: apt.slot?.start || apt.date,
+            channels: [
+              ...(preferences.appointmentReminders.email ? ['email' as const] : []),
+              ...(preferences.appointmentReminders.sms ? ['sms' as const] : []),
+              ...(preferences.appointmentReminders.push ? ['push' as const] : []),
+            ],
+          }));
+        setUpcomingReminders(upcoming);
+      }
+    } catch (error) {
+      console.error('Error fetching upcoming reminders:', error);
+    }
+  }, [apiBaseUrl, preferences.appointmentReminders]);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -104,51 +140,22 @@ export default function RemindersPage() {
       return;
     }
 
-    // Load preferences from localStorage or API
+    // Load preferences from localStorage (no backend endpoint for preferences yet)
     const savedPrefs = localStorage.getItem('reminder_preferences');
     if (savedPrefs) {
-      setPreferences({ ...defaultPreferences, ...JSON.parse(savedPrefs) });
+      try {
+        setPreferences({ ...defaultPreferences, ...JSON.parse(savedPrefs) });
+      } catch { /* ignore parse errors */ }
     }
 
-    // Mock upcoming reminders
-    setUpcomingReminders([
-      {
-        id: '1',
-        type: 'appointment',
-        title: 'Rappel RDV - Dr. Martin',
-        description: 'Consultation générale demain à 10h00',
-        scheduledFor: new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString(),
-        channels: ['email', 'sms', 'push'],
-      },
-      {
-        id: '2',
-        type: 'prescription',
-        title: 'Rappel médicament',
-        description: 'Paracétamol 1000mg - 3x/jour',
-        scheduledFor: new Date(Date.now() + 1000 * 60 * 60 * 4).toISOString(),
-        channels: ['push'],
-      },
-      {
-        id: '3',
-        type: 'appointment',
-        title: 'Rappel RDV - Dr. Dubois',
-        description: 'Suivi cardiologique dans 3 jours',
-        scheduledFor: new Date(Date.now() + 1000 * 60 * 60 * 48).toISOString(),
-        channels: ['email', 'push'],
-      },
-    ]);
-
-    setLoading(false);
-  }, [router]);
+    fetchUpcomingReminders().finally(() => setLoading(false));
+  }, [router, fetchUpcomingReminders]);
 
   const savePreferences = async () => {
     setSaving(true);
 
-    // Save to localStorage
+    // Save to localStorage (no backend endpoint for preferences yet)
     localStorage.setItem('reminder_preferences', JSON.stringify(preferences));
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
     setSaving(false);
     setSaved(true);

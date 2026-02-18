@@ -77,66 +77,6 @@ export default function NotificationsPage() {
 
     if (data && Array.isArray(data)) {
       setNotifications(data);
-    } else {
-      // Mock data for development
-      setNotifications([
-        {
-          id: '1',
-          type: 'APPOINTMENT_REMINDER',
-          title: 'Rappel de rendez-vous',
-          message: 'Votre rendez-vous avec Dr. Martin est demain à 10h00',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-        },
-        {
-          id: '2',
-          type: 'APPOINTMENT_CONFIRMED',
-          title: 'Rendez-vous confirmé',
-          message: 'Votre rendez-vous du 15 janvier a été confirmé par Dr. Dubois',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-        },
-        {
-          id: '3',
-          type: 'PRESCRIPTION_READY',
-          title: 'Ordonnance disponible',
-          message: 'Votre ordonnance du 10 janvier est prête à être téléchargée',
-          read: true,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-        },
-        {
-          id: '4',
-          type: 'PAYMENT_CONFIRMED',
-          title: 'Paiement confirmé',
-          message: 'Votre paiement de 50€ pour la consultation du 8 janvier a été validé',
-          read: true,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-        },
-        {
-          id: '5',
-          type: 'APPOINTMENT_CANCELLED',
-          title: 'Rendez-vous annulé',
-          message: 'Votre rendez-vous du 5 janvier a été annulé. Vous pouvez en reprogrammer un nouveau.',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-        },
-        {
-          id: '6',
-          type: 'LAB_RESULTS',
-          title: 'Résultats d\'analyse disponibles',
-          message: 'Vos résultats d\'analyse sanguine sont disponibles dans votre dossier médical',
-          read: true,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 96).toISOString(),
-        },
-        {
-          id: '7',
-          type: 'APPOINTMENT_REMINDER',
-          title: 'N\'oubliez pas votre rendez-vous',
-          message: 'Rappel : consultation avec Dr. Lambert le 20 janvier à 14h30',
-          read: false,
-          createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-        },
-      ]);
     }
   }, [authedFetch]);
 
@@ -176,7 +116,7 @@ export default function NotificationsPage() {
   };
 
   const markAllAsRead = async () => {
-    await authedFetch('/notifications/read-all', { method: 'PATCH' });
+    await authedFetch('/notifications/mark-all-read', { method: 'PATCH' });
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
