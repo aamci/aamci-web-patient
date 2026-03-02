@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
 import {
   Bell,
   BellOff,
@@ -73,9 +74,28 @@ export default function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000); // Poll every minute
+    const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
+
+  // WebSocket real-time updates
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const wsBase = (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const socket: Socket = io(`${wsBase}/notifications`, {
+      auth: { token },
+      transports: ['websocket'],
+      reconnectionAttempts: 5,
+    });
+
+    socket.on('new_notification', (notification: Notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+    });
+
+    return () => { socket.disconnect(); };
+  }, []);
 
   // Close dropdown on click outside
   useEffect(() => {

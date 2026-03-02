@@ -111,9 +111,12 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [bookingStep, setBookingStep] = useState<'type' | 'details' | 'payment' | 'confirm'>('type');
+  const [bookingStep, setBookingStep] = useState<'pour_qui' | 'type' | 'details' | 'payment' | 'confirm'>('pour_qui');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile' | 'onsite'>('card');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [bookingFor, setBookingFor] = useState<'me' | 'other'>('me');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
 
   // Load doctor, slots, appointment kinds
   useEffect(() => {
@@ -284,13 +287,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          // Les créneaux sont générés à la volée depuis les rules,
-          // on envoie start/end pour créer le slot au moment de la réservation
           slotStart: selectedSlot.start,
           slotEnd: selectedSlot.end,
           kindId: selectedKind || undefined,
           notes: bookingNotes || `RDV avec ${doctor?.fullName || 'le médecin'}`,
           doctorId: doctorId,
+          beneficiaryName: bookingFor === 'other' ? beneficiaryName || undefined : undefined,
+          beneficiaryPhone: bookingFor === 'other' ? beneficiaryPhone || undefined : undefined,
         }),
       });
 
@@ -319,9 +322,12 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     setBookingError(null);
     setBookingSuccess(false);
     setBookingNotes('');
-    setBookingStep('type');
+    setBookingStep('pour_qui');
     setPaymentMethod('card');
     setAcceptedTerms(false);
+    setBookingFor('me');
+    setBeneficiaryName('');
+    setBeneficiaryPhone('');
   }
 
   function getSelectedKindDetails() {
@@ -801,6 +807,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">
                   {bookingSuccess ? 'Confirmation' :
+                   bookingStep === 'pour_qui' ? 'Pour qui ?' :
                    bookingStep === 'type' ? 'Type de consultation' :
                    bookingStep === 'details' ? 'Détails du rendez-vous' :
                    bookingStep === 'payment' ? 'Paiement' : 'Récapitulatif'}
@@ -816,22 +823,26 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               {/* Progress steps */}
               {!bookingSuccess && (
                 <div className="flex items-center gap-2">
-                  {['type', 'details', 'payment', 'confirm'].map((step, idx) => (
-                    <div key={step} className="flex items-center flex-1">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                        bookingStep === step ? 'bg-teal-600 text-white' :
-                        ['type', 'details', 'payment', 'confirm'].indexOf(bookingStep) > idx ? 'bg-teal-600/30 text-teal-400' :
-                        'bg-slate-700 text-slate-500'
-                      }`}>
-                        {idx + 1}
+                  {['pour_qui', 'type', 'details', 'payment', 'confirm'].map((step, idx) => {
+                    const STEPS = ['pour_qui', 'type', 'details', 'payment', 'confirm'];
+                    const currentIdx = STEPS.indexOf(bookingStep);
+                    return (
+                      <div key={step} className="flex items-center flex-1">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                          bookingStep === step ? 'bg-teal-600 text-white' :
+                          currentIdx > idx ? 'bg-teal-600/30 text-teal-400' :
+                          'bg-slate-700 text-slate-500'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        {idx < 4 && (
+                          <div className={`flex-1 h-1 mx-1 rounded ${
+                            currentIdx > idx ? 'bg-teal-600/50' : 'bg-slate-700'
+                          }`} />
+                        )}
                       </div>
-                      {idx < 3 && (
-                        <div className={`flex-1 h-1 mx-2 rounded ${
-                          ['type', 'details', 'payment', 'confirm'].indexOf(bookingStep) > idx ? 'bg-teal-600/50' : 'bg-slate-700'
-                        }`} />
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -878,6 +889,79 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Step 0: Pour qui */}
+                  {bookingStep === 'pour_qui' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-slate-400 mb-4">Pour qui prenez-vous rendez-vous ?</p>
+                      <button
+                        onClick={() => setBookingFor('me')}
+                        className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                          bookingFor === 'me'
+                            ? 'border-teal-500 bg-teal-600/10'
+                            : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-teal-600/20 flex items-center justify-center">
+                            <User className="w-5 h-5 text-teal-400" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-white">{user?.fullName || 'Moi'}</div>
+                            <div className="text-sm text-slate-400">Moi-même</div>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
+                          bookingFor === 'me' ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
+                        }`}>
+                          {bookingFor === 'me' && <Check className="w-full h-full text-white p-0.5" />}
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setBookingFor('other')}
+                        className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                          bookingFor === 'other'
+                            ? 'border-teal-500 bg-teal-600/10'
+                            : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center">
+                            <User className="w-5 h-5 text-slate-400" />
+                          </div>
+                          <div>
+                            <div className="font-medium text-white">Quelqu'un d'autre</div>
+                            <div className="text-sm text-slate-400">Proche, famille...</div>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
+                          bookingFor === 'other' ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
+                        }`}>
+                          {bookingFor === 'other' && <Check className="w-full h-full text-white p-0.5" />}
+                        </div>
+                      </button>
+
+                      {bookingFor === 'other' && (
+                        <div className="space-y-3 mt-3">
+                          <input
+                            type="text"
+                            value={beneficiaryName}
+                            onChange={(e) => setBeneficiaryName(e.target.value)}
+                            placeholder="Nom complet du bénéficiaire"
+                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          />
+                          <input
+                            type="tel"
+                            value={beneficiaryPhone}
+                            onChange={(e) => setBeneficiaryPhone(e.target.value)}
+                            placeholder="Téléphone du bénéficiaire (optionnel)"
+                            className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Step 1: Type selection */}
                   {bookingStep === 'type' && (
@@ -1084,6 +1168,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                             <div className="text-slate-400 text-sm">{prof?.specialty}</div>
                           </div>
                         </div>
+                        {bookingFor === 'other' && beneficiaryName && (
+                          <div className="p-4">
+                            <div className="text-sm text-slate-400">Bénéficiaire</div>
+                            <div className="text-white">{beneficiaryName}</div>
+                            {beneficiaryPhone && <div className="text-slate-400 text-sm">{beneficiaryPhone}</div>}
+                          </div>
+                        )}
                         <div className="p-4">
                           <div className="text-sm text-slate-400">Type de consultation</div>
                           <div className="text-white">{getSelectedKindDetails()?.label || 'Consultation standard'}</div>
@@ -1138,8 +1229,10 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               <div className="flex gap-3 px-6 py-4 border-t border-slate-700">
                 <button
                   onClick={() => {
-                    if (bookingStep === 'type') {
+                    if (bookingStep === 'pour_qui') {
                       closeModal();
+                    } else if (bookingStep === 'type') {
+                      setBookingStep('pour_qui');
                     } else if (bookingStep === 'details') {
                       setBookingStep('type');
                     } else if (bookingStep === 'payment') {
@@ -1151,11 +1244,18 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   disabled={booking}
                   className="flex-1 px-4 py-3 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 transition-colors disabled:opacity-50"
                 >
-                  {bookingStep === 'type' ? 'Annuler' : 'Retour'}
+                  {bookingStep === 'pour_qui' ? 'Annuler' : 'Retour'}
                 </button>
                 <button
                   onClick={() => {
-                    if (bookingStep === 'type') {
+                    if (bookingStep === 'pour_qui') {
+                      if (bookingFor === 'other' && !beneficiaryName.trim()) {
+                        setBookingError('Veuillez renseigner le nom du bénéficiaire');
+                        return;
+                      }
+                      setBookingError(null);
+                      setBookingStep('type');
+                    } else if (bookingStep === 'type') {
                       setBookingStep('details');
                     } else if (bookingStep === 'details') {
                       setBookingStep('payment');

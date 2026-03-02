@@ -21,7 +21,6 @@ import {
   AlertTriangle,
   Loader2,
   ChevronRight,
-  Settings,
   Heart,
   FileText,
 } from 'lucide-react';
@@ -74,6 +73,15 @@ export default function AccountPage() {
   const [showCurrentPwd, setShowCurrentPwd] = useState(false);
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
+
+  // 2FA
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorStep, setTwoFactorStep] = useState<'idle' | 'setup' | 'disable'>('idle');
+  const [otpauthUrl, setOtpauthUrl] = useState('');
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorBackupCodes, setTwoFactorBackupCodes] = useState<string[]>([]);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
   // Notification preferences
   const [emailNotifs, setEmailNotifs] = useState(true);
@@ -203,6 +211,63 @@ export default function AccountPage() {
       setErr(e instanceof Error ? e.message : 'Impossible de changer le mot de passe');
     } finally {
       setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'security') return;
+    authedFetch('/2fa/status').then(r => r.json()).then(d => setTwoFactorEnabled(d.isEnabled)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  async function handleSetup2FA() {
+    setTwoFactorLoading(true);
+    setErr(null);
+    try {
+      const r = await authedFetch('/2fa/generate', { method: 'POST' });
+      const d = await r.json();
+      setOtpauthUrl(d.otpauthUrl);
+      setTwoFactorSecret(d.secret);
+      setTwoFactorBackupCodes(d.backupCodes ?? []);
+      setTwoFactorStep('setup');
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Erreur lors de la génération 2FA');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  }
+
+  async function handleEnable2FA() {
+    setTwoFactorLoading(true);
+    setErr(null);
+    try {
+      await authedFetch('/2fa/enable', { method: 'POST', body: JSON.stringify({ code: twoFactorCode }) });
+      setTwoFactorEnabled(true);
+      setTwoFactorStep('idle');
+      setTwoFactorCode('');
+      setSuccess('Authentification à deux facteurs activée avec succès');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Code invalide ou expiré');
+    } finally {
+      setTwoFactorLoading(false);
+    }
+  }
+
+  async function handleDisable2FA() {
+    setTwoFactorLoading(true);
+    setErr(null);
+    try {
+      await authedFetch('/2fa/disable', { method: 'POST', body: JSON.stringify({ code: twoFactorCode }) });
+      setTwoFactorEnabled(false);
+      setTwoFactorStep('idle');
+      setTwoFactorCode('');
+      setSuccess('Authentification à deux facteurs désactivée');
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Code invalide');
+    } finally {
+      setTwoFactorLoading(false);
     }
   }
 
@@ -618,17 +683,132 @@ export default function AccountPage() {
                       </div>
                       <span className="text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">Actif</span>
                     </div>
-                    <div className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center">
-                          <Settings className="w-5 h-5 text-slate-400" />
+                    <div className="py-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${twoFactorEnabled ? 'bg-teal-500/20' : 'bg-slate-700'}`}>
+                            <Shield className={`w-5 h-5 ${twoFactorEnabled ? 'text-teal-400' : 'text-slate-400'}`} />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium text-white">Authentification à deux facteurs</div>
+                            <div className="text-xs text-slate-400">Application TOTP (Google Authenticator, Authy…)</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-sm font-medium text-white">Authentification à deux facteurs</div>
-                          <div className="text-xs text-slate-400">Ajoutez une couche de sécurité supplémentaire</div>
-                        </div>
+                        {twoFactorEnabled ? (
+                          <button
+                            type="button"
+                            onClick={() => setTwoFactorStep('disable')}
+                            className="text-xs text-red-400 border border-red-400/30 px-3 py-1 rounded-full hover:bg-red-400/10 transition-colors"
+                          >
+                            Désactiver
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleSetup2FA}
+                            disabled={twoFactorLoading}
+                            className="text-xs text-teal-400 border border-teal-400/30 px-3 py-1 rounded-full hover:bg-teal-400/10 transition-colors disabled:opacity-50"
+                          >
+                            {twoFactorLoading ? 'Chargement…' : 'Activer'}
+                          </button>
+                        )}
                       </div>
-                      <span className="text-xs text-slate-400 bg-slate-700 px-2 py-1 rounded-full">Bientôt</span>
+
+                      {/* 2FA setup panel */}
+                      {twoFactorStep === 'setup' && (
+                        <div className="mt-4 p-4 bg-slate-700/50 rounded-xl border border-slate-600 space-y-4">
+                          <p className="text-sm font-medium text-slate-200">Configuration de l&apos;authenticator</p>
+                          <ol className="text-xs text-slate-400 space-y-1 list-decimal list-inside">
+                            <li>Téléchargez Google Authenticator ou Authy</li>
+                            <li>Scannez le QR code ou entrez la clé manuellement</li>
+                            <li>Saisissez le code à 6 chiffres généré</li>
+                          </ol>
+                          <div className="flex justify-center">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(otpauthUrl)}&size=160x160&color=2dd4bf&bgcolor=1e293b`}
+                              alt="QR Code 2FA"
+                              className="rounded-lg"
+                              width={160}
+                              height={160}
+                            />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 mb-1">Ou entrez la clé manuellement :</p>
+                            <code className="text-xs text-teal-400 font-mono break-all select-all">{twoFactorSecret}</code>
+                          </div>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={twoFactorCode}
+                            onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="Code à 6 chiffres"
+                            className="w-full text-center px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-xl font-mono tracking-widest focus:outline-none focus:border-teal-500"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setTwoFactorStep('idle'); setTwoFactorCode(''); }}
+                              className="flex-1 py-2 text-sm text-slate-400 border border-slate-600 rounded-lg hover:bg-slate-700"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleEnable2FA}
+                              disabled={twoFactorCode.length !== 6 || twoFactorLoading}
+                              className="flex-1 py-2 text-sm text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-50"
+                            >
+                              {twoFactorLoading ? 'Vérification…' : 'Activer'}
+                            </button>
+                          </div>
+                          {twoFactorBackupCodes.length > 0 && (
+                            <div className="border-t border-slate-600 pt-3">
+                              <p className="text-xs text-yellow-400 mb-2">⚠ Codes de secours — sauvegardez-les dans un endroit sûr :</p>
+                              <div className="grid grid-cols-2 gap-1">
+                                {twoFactorBackupCodes.map((c) => (
+                                  <code key={c} className="text-xs font-mono text-slate-300 bg-slate-700 px-2 py-1 rounded text-center">{c}</code>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 2FA disable panel */}
+                      {twoFactorStep === 'disable' && (
+                        <div className="mt-4 p-4 bg-red-900/20 rounded-xl border border-red-500/30 space-y-3">
+                          <p className="text-sm font-medium text-red-300">Désactiver l&apos;authentification à deux facteurs</p>
+                          <p className="text-xs text-red-400">Entrez le code de votre application authenticator pour confirmer.</p>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={twoFactorCode}
+                            onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="Code à 6 chiffres"
+                            className="w-full text-center px-4 py-3 bg-slate-700 border border-red-500/40 rounded-xl text-white placeholder-slate-500 text-xl font-mono tracking-widest focus:outline-none focus:border-red-500"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => { setTwoFactorStep('idle'); setTwoFactorCode(''); }}
+                              className="flex-1 py-2 text-sm text-slate-400 border border-slate-600 rounded-lg hover:bg-slate-700"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDisable2FA}
+                              disabled={twoFactorCode.length !== 6 || twoFactorLoading}
+                              className="flex-1 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-500 disabled:opacity-50"
+                            >
+                              {twoFactorLoading ? 'Vérification…' : 'Confirmer'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
