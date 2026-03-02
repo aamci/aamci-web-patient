@@ -36,12 +36,11 @@ test:web-patient:
     - if: $CI_COMMIT_BRANCH
     - if: $CI_COMMIT_TAG =~ /^web-patient\/v.*/
   script:
-    - cd apps/web-patient
     - pnpm test:run
   coverage: '/Lines\s*:\s*\d+\.?\d+%/'
   artifacts:
     paths:
-      - apps/web-patient/coverage/
+      - coverage/
     expire_in: 1 week
 
 # ── Build image Docker (staging) ──────────────────────────────────────────────
@@ -59,8 +58,8 @@ build:web-patient:staging:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n $CI_REGISTRY_USER:$CI_JOB_TOKEN | base64)\"}}}" > /kaniko/.docker/config.json
   script:
     - /kaniko/executor
-      --context "$CI_PROJECT_DIR/apps/web-patient"
-      --dockerfile "$CI_PROJECT_DIR/apps/web-patient/Dockerfile"
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
       --destination "$CI_REGISTRY_IMAGE/web-patient:$CI_COMMIT_SHORT_SHA"
       --destination "$CI_REGISTRY_IMAGE/web-patient:staging"
       --build-arg "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL_STAGING"
@@ -80,8 +79,8 @@ build:web-patient:production:
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"auth\":\"$(echo -n $CI_REGISTRY_USER:$CI_JOB_TOKEN | base64)\"}}}" > /kaniko/.docker/config.json
   script:
     - /kaniko/executor
-      --context "$CI_PROJECT_DIR/apps/web-patient"
-      --dockerfile "$CI_PROJECT_DIR/apps/web-patient/Dockerfile"
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
       --destination "$CI_REGISTRY_IMAGE/web-patient:$CI_COMMIT_TAG"
       --destination "$CI_REGISTRY_IMAGE/web-patient:latest"
       --build-arg "NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL_PROD"
