@@ -93,7 +93,7 @@ export default function Navbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-700 bg-slate-900 shadow-lg">
+    <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-sm shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -112,7 +112,7 @@ export default function Navbar() {
           </Link>
 
           {/* Navigation desktop */}
-          <nav className="hidden lg:flex items-center gap-1">
+          <nav className="hidden lg:flex items-center gap-0.5">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               const showBadge = link.href === '/messages' && unreadMessages > 0;
@@ -121,9 +121,9 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   className={`
-                    relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors
+                    relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
                     ${isActive
-                      ? 'bg-teal-600 text-white'
+                      ? 'bg-teal-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800'
                     }
                   `}
@@ -131,7 +131,7 @@ export default function Navbar() {
                   <link.icon className="w-4 h-4" />
                   {link.label}
                   {showBadge && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
                       {unreadMessages > 9 ? '9+' : unreadMessages}
                     </span>
                   )}
@@ -182,57 +182,41 @@ export default function Navbar() {
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-slate-800 rounded-xl shadow-lg border border-slate-700 py-2 z-50">
+                  <div className="absolute right-0 top-full mt-1.5 w-60 bg-slate-800 rounded-xl shadow-2xl border border-slate-700/60 py-1 z-50">
                     {/* En-tête du menu */}
-                    <div className="px-4 py-3 border-b border-slate-700">
-                      <p className="text-sm font-semibold text-white">{user.fullName || 'Utilisateur'}</p>
-                      <p className="text-xs text-slate-400">{user.email}</p>
+                    <div className="px-4 py-3 border-b border-slate-700/60">
+                      <p className="text-sm font-semibold text-white truncate">{user.fullName || 'Utilisateur'}</p>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{user.email}</p>
                     </div>
 
                     {/* Liens du menu */}
                     <div className="py-1">
-                      <Link
-                        href="/account"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
-                      >
-                        <User className="w-4 h-4 text-slate-400" />
-                        Mon profil
-                      </Link>
-                      <Link
-                        href="/appointments"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
-                      >
-                        <Calendar className="w-4 h-4 text-slate-400" />
-                        Mes rendez-vous
-                      </Link>
-                      <Link
-                        href="/favorites"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
-                      >
-                        <Heart className="w-4 h-4 text-slate-400" />
-                        Mes favoris
-                      </Link>
-                      <Link
-                        href="/reviews"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition-colors"
-                      >
-                        <Star className="w-4 h-4 text-slate-400" />
-                        Mes avis
-                      </Link>
+                      {[
+                        { href: '/account',      Icon: User,      label: 'Mon profil'      },
+                        { href: '/appointments', Icon: Calendar,  label: 'Mes rendez-vous' },
+                        { href: '/favorites',    Icon: Heart,     label: 'Mes favoris'     },
+                        { href: '/reviews',      Icon: Star,      label: 'Mes avis'        },
+                      ].map(({ href, Icon, label }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700/60 transition-colors"
+                        >
+                          <Icon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          {label}
+                        </Link>
+                      ))}
                     </div>
 
                     {/* Déconnexion */}
-                    <div className="border-t border-slate-700 pt-1">
+                    <div className="border-t border-slate-700/60 py-1">
                       <button
                         type="button"
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-slate-700 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                       >
-                        <LogOut className="w-4 h-4" />
+                        <LogOut className="w-4 h-4 flex-shrink-0" />
                         Déconnexion
                       </button>
                     </div>
@@ -256,7 +240,7 @@ export default function Navbar() {
 
       {/* Menu mobile */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-slate-700 bg-slate-800">
+        <div className="lg:hidden border-t border-slate-800/80 bg-slate-900/98 backdrop-blur-sm">
           <nav className="px-4 py-3 space-y-1">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;

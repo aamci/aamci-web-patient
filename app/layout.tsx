@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import { AuthProvider } from "@/app/_providers/AuthProvider";
 import { ToastProvider } from "@/components/ui/Toast";
+import PatientLayoutClient from "@/app/_components/PatientLayoutClient";
 
 export const metadata: Metadata = {
   title: "Plateforme Santé",
@@ -13,11 +14,11 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className="min-h-screen bg-slate-900">
+      <body className="min-h-screen bg-slate-900 antialiased">
         <AuthProvider>
           <ToastProvider>
             <Navbar />
-            <main>{children}</main>
+            <PatientLayoutClient>{children}</PatientLayoutClient>
           </ToastProvider>
         </AuthProvider>
       </body>
