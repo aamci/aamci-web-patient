@@ -15,7 +15,7 @@ export default function OAuthSuccessPage() {
 
     // Redirect to home after a brief delay
     const timer = setTimeout(() => {
-      router.push('/');
+      router.push('/dashboard');
     }, 1500);
 
     return () => clearTimeout(timer);

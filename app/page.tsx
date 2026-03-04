@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from './_providers/AuthProvider';
 import {
   Search,
@@ -20,7 +22,14 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && user) router.replace('/dashboard');
+  }, [user, loading, router]);
+
+  if (!loading && user) return null;
 
   return (
     <div className="min-h-screen">

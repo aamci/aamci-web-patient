@@ -23,6 +23,12 @@ import {
   ChevronRight,
   Heart,
   FileText,
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Send,
+  Plus,
 } from 'lucide-react';
 
 function getApiBase(): string | null {
@@ -37,13 +43,14 @@ function getApiBase(): string | null {
   }
 }
 
-type TabId = 'profile' | 'security' | 'notifications' | 'billing';
+type TabId = 'profile' | 'security' | 'notifications' | 'billing' | 'support';
 
 const tabs: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profil', icon: User },
   { id: 'security', label: 'Sécurité', icon: Shield },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'billing', label: 'Facturation', icon: CreditCard },
+  { id: 'support', label: 'Support', icon: MessageSquare },
 ];
 
 export default function AccountPage() {
@@ -89,6 +96,21 @@ export default function AccountPage() {
   const [reminderNotifs, setReminderNotifs] = useState(true);
   const [marketingNotifs, setMarketingNotifs] = useState(false);
 
+  // Support tickets
+  type Ticket = {
+    id: string; title: string; description: string; status: string;
+    priority: string; category?: string; response?: string; createdAt: string;
+  };
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [showTicketForm, setShowTicketForm] = useState(false);
+  const [ticketTitle, setTicketTitle] = useState('');
+  const [ticketCategory, setTicketCategory] = useState('');
+  const [ticketDescription, setTicketDescription] = useState('');
+  const [ticketPriority, setTicketPriority] = useState('MEDIUM');
+  const [ticketSaving, setTicketSaving] = useState(false);
+  const [ticketErr, setTicketErr] = useState('');
+
   function buildUrl(path: string) {
     return apiBase ? `${apiBase}${path}` : `/api-proxy${path}`;
   }
@@ -113,6 +135,45 @@ export default function AccountPage() {
       throw new Error(`HTTP ${r.status}${t ? ` — ${t}` : ''}`);
     }
     return r;
+  }
+
+  async function loadTickets() {
+    setTicketsLoading(true);
+    try {
+      const r = await authedFetch('/tickets/my');
+      setTickets(await r.json());
+    } catch {
+      // silently fail
+    } finally {
+      setTicketsLoading(false);
+    }
+  }
+
+  async function handleCreateTicket(e: React.FormEvent) {
+    e.preventDefault();
+    setTicketErr('');
+    setTicketSaving(true);
+    try {
+      await authedFetch('/tickets', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: ticketTitle,
+          description: ticketDescription,
+          category: ticketCategory || undefined,
+          priority: ticketPriority,
+        }),
+      });
+      setTicketTitle('');
+      setTicketCategory('');
+      setTicketDescription('');
+      setTicketPriority('MEDIUM');
+      setShowTicketForm(false);
+      loadTickets();
+    } catch (e: unknown) {
+      setTicketErr(e instanceof Error ? e.message : 'Erreur lors de l\'envoi');
+    } finally {
+      setTicketSaving(false);
+    }
   }
 
   // Load profile on mount
@@ -217,6 +278,11 @@ export default function AccountPage() {
   useEffect(() => {
     if (activeTab !== 'security') return;
     authedFetch('/2fa/status').then(r => r.json()).then(d => setTwoFactorEnabled(d.isEnabled)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'support') loadTickets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -958,6 +1024,146 @@ export default function AccountPage() {
                     <FileText className="w-10 h-10 mx-auto mb-3 text-slate-500" />
                     <p className="text-sm">Aucun paiement pour le moment</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Support Tab */}
+            {activeTab === 'support' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Support</h2>
+                      <p className="text-sm text-slate-400 mt-0.5">Signalez un problème ou posez une question</p>
+                    </div>
+                    <button
+                      onClick={() => { setShowTicketForm(!showTicketForm); setTicketErr(''); }}
+                      className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-500 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Nouveau ticket
+                    </button>
+                  </div>
+
+                  {showTicketForm && (
+                    <form onSubmit={handleCreateTicket} className="mb-6 bg-slate-700/50 rounded-xl border border-slate-600 p-5 space-y-4">
+                      <h3 className="text-sm font-semibold text-white">Nouveau ticket</h3>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Sujet *</label>
+                        <input
+                          type="text"
+                          required
+                          value={ticketTitle}
+                          onChange={(e) => setTicketTitle(e.target.value)}
+                          placeholder="Décrivez brièvement votre problème"
+                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Catégorie</label>
+                          <select
+                            value={ticketCategory}
+                            onChange={(e) => setTicketCategory(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                          >
+                            <option value="">Générale</option>
+                            <option value="APPOINTMENT">Rendez-vous</option>
+                            <option value="PAYMENT">Paiement</option>
+                            <option value="ACCOUNT">Compte</option>
+                            <option value="TECHNICAL">Technique</option>
+                            <option value="OTHER">Autre</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1">Priorité</label>
+                          <select
+                            value={ticketPriority}
+                            onChange={(e) => setTicketPriority(e.target.value)}
+                            className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                          >
+                            <option value="LOW">Faible</option>
+                            <option value="MEDIUM">Normale</option>
+                            <option value="HIGH">Haute</option>
+                            <option value="URGENT">Urgente</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Description *</label>
+                        <textarea
+                          required
+                          rows={4}
+                          value={ticketDescription}
+                          onChange={(e) => setTicketDescription(e.target.value)}
+                          placeholder="Décrivez votre problème en détail..."
+                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                        />
+                      </div>
+                      {ticketErr && <p className="text-sm text-red-400">{ticketErr}</p>}
+                      <div className="flex gap-3 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowTicketForm(false)}
+                          className="px-4 py-2 text-sm text-slate-400 border border-slate-600 rounded-lg hover:bg-slate-700"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={ticketSaving}
+                          className="flex items-center gap-2 px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-500 disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          {ticketSaving ? 'Envoi…' : 'Envoyer'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Tickets list */}
+                  {ticketsLoading ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                    </div>
+                  ) : tickets.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400">
+                      <MessageSquare className="w-10 h-10 mx-auto mb-3 text-slate-600" />
+                      <p className="text-sm">Aucun ticket pour le moment</p>
+                      <p className="text-xs text-slate-500 mt-1">Créez votre premier ticket si vous avez besoin d&apos;aide</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {tickets.map((t) => {
+                        const statusConfig: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+                          OPEN: { label: 'Ouvert', icon: <Clock className="w-3 h-3" />, color: 'text-blue-400 bg-blue-400/10' },
+                          IN_PROGRESS: { label: 'En cours', icon: <AlertTriangle className="w-3 h-3" />, color: 'text-yellow-400 bg-yellow-400/10' },
+                          RESOLVED: { label: 'Résolu', icon: <CheckCircle className="w-3 h-3" />, color: 'text-emerald-400 bg-emerald-400/10' },
+                          CLOSED: { label: 'Fermé', icon: <XCircle className="w-3 h-3" />, color: 'text-slate-400 bg-slate-400/10' },
+                        };
+                        const s = statusConfig[t.status] ?? statusConfig.OPEN;
+                        return (
+                          <div key={t.id} className="rounded-xl border border-slate-600 bg-slate-700/40 p-4">
+                            <div className="flex items-start justify-between gap-3 mb-2">
+                              <p className="text-sm font-medium text-white">{t.title}</p>
+                              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium shrink-0 ${s.color}`}>
+                                {s.icon} {s.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 line-clamp-2 mb-2">{t.description}</p>
+                            {t.response && (
+                              <div className="mt-3 p-3 bg-teal-900/20 border border-teal-500/20 rounded-lg">
+                                <p className="text-xs font-medium text-teal-400 mb-1">Réponse de l&apos;équipe support :</p>
+                                <p className="text-xs text-slate-300">{t.response}</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-slate-500 mt-2">{new Date(t.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

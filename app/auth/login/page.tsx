@@ -126,13 +126,13 @@ export default function LoginPage() {
           ? localStorage.setItem('login_email', email)
           : localStorage.removeItem('login_email');
         await setAuthToken();
-        router.replace('/');
+        router.replace('/dashboard');
       } else if (d?.success) {
         remember
           ? localStorage.setItem('login_email', email)
           : localStorage.removeItem('login_email');
         await setAuthToken();
-        router.replace('/');
+        router.replace('/dashboard');
       } else {
         setErr('Réponse inattendue du serveur.');
       }

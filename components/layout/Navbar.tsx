@@ -22,7 +22,7 @@ import {
 import NotificationBell from '@/components/NotificationBell';
 
 const navLinks = [
-  { href: '/' as const, label: 'Accueil', icon: Home },
+  { href: '/dashboard' as const, label: 'Accueil', icon: Home },
   { href: '/doctors' as const, label: 'Médecins', icon: Search },
   { href: '/appointments' as const, label: 'Rendez-vous', icon: Calendar },
   { href: '/health-records' as const, label: 'Dossier médical', icon: Activity },
@@ -199,7 +199,7 @@ export default function Navbar() {
                       ].map(({ href, Icon, label }) => (
                         <Link
                           key={href}
-                          href={href}
+                          href={href as any}
                           onClick={() => setUserMenuOpen(false)}
                           className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700/60 transition-colors"
                         >
