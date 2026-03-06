@@ -452,8 +452,10 @@ export default function ReviewsPage() {
                                 value={editComment}
                                 onChange={e => setEditComment(e.target.value)}
                                 rows={3}
+                                maxLength={1000}
                                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:border-teal-500"
                               />
+                              <p className="text-xs text-slate-500 text-right mt-1">{editComment.length}/1000</p>
                             </div>
                             <div className="flex gap-2">
                               <button
@@ -577,8 +579,10 @@ export default function ReviewsPage() {
                     onChange={e => setSubmitComment(e.target.value)}
                     placeholder="Partagez votre expérience..."
                     rows={4}
+                    maxLength={1000}
                     className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm resize-none focus:outline-none focus:border-teal-500"
                   />
+                  <p className="text-xs text-slate-500 text-right mt-1">{submitComment.length}/1000</p>
                 </div>
 
                 {/* Privacy toggle */}

@@ -469,8 +469,9 @@ function MessagesPageContent() {
                       type="text"
                       placeholder="Écrivez votre message..."
                       value={newMessage}
-                      onChange={e => setNewMessage(e.target.value)}
+                      onChange={e => setNewMessage(e.target.value.slice(0, 2000))}
                       onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                      maxLength={2000}
                       className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-full text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
                     />
                     <button

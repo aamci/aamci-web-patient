@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Video,
@@ -33,18 +33,27 @@ interface CallState {
   doctorAvatar?: string;
 }
 
+function getApiBase(): string {
+  let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+  b = b.trim().replace(/^['\"]|['\"]$/g, '').replace(/\/+$/, '');
+  if (!b) return 'http://localhost:3000';
+  try { new URL(b); return b; } catch { return 'http://localhost:3000'; }
+}
+
 function TeleconsultationPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const appointmentId = searchParams.get('appointment');
   const doctorId = searchParams.get('doctor');
+  const apiBase = useMemo(() => getApiBase(), []);
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [callState, setCallState] = useState<CallState>({
     status: 'idle',
     duration: 0,
-    doctorName: 'Dr. Marie Martin',
-    doctorSpecialty: 'Médecine générale',
+    doctorName: 'Médecin',
+    doctorSpecialty: '',
   });
 
   // Controls
@@ -56,9 +65,7 @@ function TeleconsultationPageContent() {
   const [showSettings, setShowSettings] = useState(false);
 
   // Chat
-  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([
-    { sender: 'doctor', text: 'Bonjour, je vous vois bien. Comment allez-vous ?', time: '14:32' },
-  ]);
+  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
   const [newChatMessage, setNewChatMessage] = useState('');
 
   // Timer ref
@@ -72,17 +79,57 @@ function TeleconsultationPageContent() {
       return;
     }
 
-    // Simulate loading consultation data
-    setTimeout(() => {
-      setLoading(false);
-      // Auto-start connecting
-      setTimeout(() => startCall(), 500);
-    }, 1000);
+    const load = async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+
+        // Fetch appointment data if appointmentId provided
+        if (appointmentId) {
+          const res = await fetch(`${apiBase}/appointments/${appointmentId}`, { headers, cache: 'no-store' });
+          if (res.ok) {
+            const appt = await res.json();
+            const doctor = appt.doctor ?? appt.slot?.doctor;
+            setCallState(prev => ({
+              ...prev,
+              doctorName: doctor?.fullName ? `Dr. ${doctor.fullName}` : 'Médecin',
+              doctorSpecialty: appt.kind?.name ?? doctor?.specialty ?? '',
+            }));
+          }
+        } else if (doctorId) {
+          // Fetch doctor profile directly
+          const res = await fetch(`${apiBase}/doctor-profiles/${doctorId}`, { headers, cache: 'no-store' });
+          if (res.ok) {
+            const profile = await res.json();
+            setCallState(prev => ({
+              ...prev,
+              doctorName: profile.user?.fullName ? `Dr. ${profile.user.fullName}` : 'Médecin',
+              doctorSpecialty: profile.specialty ?? '',
+            }));
+          }
+        }
+
+        // Notify API that video session started
+        if (appointmentId) {
+          await fetch(`${apiBase}/appointments/${appointmentId}/start-video`, {
+            method: 'POST',
+            headers,
+          }).catch(() => null);
+        }
+      } catch {
+        // Non-critical — continue with defaults
+      } finally {
+        setLoading(false);
+        setTimeout(() => startCall(), 500);
+      }
+    };
+
+    load();
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId, doctorId, apiBase]);
 
   const startCall = () => {
     setCallState(prev => ({ ...prev, status: 'connecting' }));
@@ -103,13 +150,24 @@ function TeleconsultationPageContent() {
     }, 2000);
   };
 
-  const endCall = () => {
+  const endCall = useCallback(async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
     setCallState(prev => ({ ...prev, status: 'ended' }));
-  };
+
+    // Notify API that video session ended
+    if (appointmentId) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(`${apiBase}/appointments/${appointmentId}/end-video`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null);
+      }
+    }
+  }, [appointmentId, apiBase]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {

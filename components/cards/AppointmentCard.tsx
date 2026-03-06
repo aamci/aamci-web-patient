@@ -12,6 +12,7 @@ import {
   XCircle,
   AlertCircle,
   MapPin,
+  Video,
 } from 'lucide-react';
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
@@ -119,6 +120,7 @@ export default function AppointmentCard({
       : statusConfig;
 
   const consultationType = appointment.kind?.name || appointment.type || 'Consultation';
+  const isVisio = /visio|téléconsultation|teleconsultation|video|vidéo/i.test(consultationType);
 
   return (
     <div
@@ -251,8 +253,18 @@ export default function AppointmentCard({
                 </button>
               )}
 
+              {isVisio && isUpcoming && appointment.status === 'CONFIRMED' && (
+                <Link
+                  href={`/teleconsultation?appointment=${appointment.id}` as any}
+                  className="px-4 py-2 bg-teal-600 text-white rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-teal-500 transition-colors"
+                >
+                  <Video className="w-4 h-4" />
+                  Rejoindre la visio
+                </Link>
+              )}
+
               {showAddToCalendar && isUpcoming && appointment.status === 'CONFIRMED' && (
-                <button className="px-4 py-2 bg-teal-600 text-white rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-teal-500 transition-colors">
+                <button className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-slate-600 hover:text-white transition-colors border border-slate-600">
                   <CalendarPlus className="w-4 h-4" />
                   Ajouter au calendrier
                 </button>

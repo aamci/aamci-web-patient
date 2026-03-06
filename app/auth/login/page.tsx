@@ -401,6 +401,7 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
+                  onClick={() => router.push('/auth/forgot-password' as any)}
                   className="text-teal-400 font-medium hover:text-teal-300 transition-colors"
                 >
                   Mot de passe oublié ?

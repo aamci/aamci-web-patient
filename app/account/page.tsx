@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../_providers/AuthProvider';
+import { required, minLen, maxLen, email as emailVal, phone as phoneVal, hasErrors, type FormErrors } from '@/lib/validation';
 import {
   User,
   Mail,
@@ -96,6 +97,11 @@ export default function AccountPage() {
   const [reminderNotifs, setReminderNotifs] = useState(true);
   const [marketingNotifs, setMarketingNotifs] = useState(false);
 
+  // Field errors
+  const [profileErrors, setProfileErrors] = useState<FormErrors<'fullName' | 'email' | 'phone' | 'birthdate'>>({});
+  const [pwdErrors, setPwdErrors] = useState<FormErrors<'currentPwd' | 'newPwd' | 'confirmPwd'>>({});
+  const [ticketFieldErrors, setTicketFieldErrors] = useState<FormErrors<'ticketTitle' | 'ticketDescription'>>({});
+
   // Support tickets
   type Ticket = {
     id: string; title: string; description: string; status: string;
@@ -110,6 +116,15 @@ export default function AccountPage() {
   const [ticketPriority, setTicketPriority] = useState('MEDIUM');
   const [ticketSaving, setTicketSaving] = useState(false);
   const [ticketErr, setTicketErr] = useState('');
+
+  // Invoices (billing tab)
+  type Invoice = {
+    id: string; number?: string; status: string; totalAmount?: number; amount?: number;
+    currency?: string; createdAt: string; dueDate?: string;
+    appointment?: { slot?: { start?: string } }; doctor?: { fullName?: string };
+  };
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
 
   function buildUrl(path: string) {
     return apiBase ? `${apiBase}${path}` : `/api-proxy${path}`;
@@ -149,9 +164,28 @@ export default function AccountPage() {
     }
   }
 
+  async function loadInvoices() {
+    setInvoicesLoading(true);
+    try {
+      const r = await authedFetch('/invoices');
+      const data = await r.json();
+      setInvoices(Array.isArray(data) ? data : data?.data ?? []);
+    } catch {
+      // silently fail
+    } finally {
+      setInvoicesLoading(false);
+    }
+  }
+
   async function handleCreateTicket(e: React.FormEvent) {
     e.preventDefault();
     setTicketErr('');
+    const tfErrors: typeof ticketFieldErrors = {
+      ticketTitle: required(ticketTitle, 'Sujet') ?? minLen(ticketTitle, 3, 'Sujet') ?? maxLen(ticketTitle, 200, 'Sujet'),
+      ticketDescription: required(ticketDescription, 'Description') ?? minLen(ticketDescription, 20, 'Description') ?? maxLen(ticketDescription, 2000, 'Description'),
+    };
+    setTicketFieldErrors(tfErrors);
+    if (hasErrors(tfErrors)) return;
     setTicketSaving(true);
     try {
       await authedFetch('/tickets', {
@@ -210,6 +244,14 @@ export default function AccountPage() {
     e.preventDefault();
     setErr(null);
     setSuccess(null);
+    const errors: typeof profileErrors = {
+      fullName: required(fullName, 'Nom complet') ?? minLen(fullName, 2, 'Nom complet') ?? maxLen(fullName, 100, 'Nom complet'),
+      email: required(email, 'Email') ?? emailVal(email),
+      phone: phoneVal(phone),
+      birthdate: birthdate && new Date(birthdate) > new Date() ? 'La date de naissance ne peut pas être dans le futur' : null,
+    };
+    setProfileErrors(errors);
+    if (hasErrors(errors)) return;
     setSaving(true);
     try {
       const r = await authedFetch('/me', {
@@ -243,16 +285,13 @@ export default function AccountPage() {
     e.preventDefault();
     setErr(null);
     setSuccess(null);
-
-    if (!newPwd || newPwd.length < 6) {
-      setErr('Le nouveau mot de passe doit faire au moins 6 caractères.');
-      return;
-    }
-    if (newPwd !== confirmPwd) {
-      setErr('Les deux mots de passe ne correspondent pas.');
-      return;
-    }
-
+    const errors: typeof pwdErrors = {
+      currentPwd: required(currentPwd, 'Mot de passe actuel'),
+      newPwd: required(newPwd, 'Nouveau mot de passe') ?? minLen(newPwd, 6, 'Nouveau mot de passe'),
+      confirmPwd: newPwd !== confirmPwd ? 'Les deux mots de passe ne correspondent pas' : null,
+    };
+    setPwdErrors(errors);
+    if (hasErrors(errors)) return;
     setSaving(true);
     try {
       const r = await authedFetch('/me/password', {
@@ -283,6 +322,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (activeTab === 'support') loadTickets();
+    if (activeTab === 'billing') loadInvoices();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -532,11 +572,13 @@ export default function AccountPage() {
                         <input
                           type="text"
                           value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
+                          onChange={(e) => { setFullName(e.target.value); setProfileErrors(fe => ({ ...fe, fullName: null })); }}
                           placeholder="Jean Dupont"
-                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          maxLength={100}
+                          className={`w-full pl-12 pr-4 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${profileErrors.fullName ? 'border-red-500' : 'border-slate-600'}`}
                         />
                       </div>
+                      {profileErrors.fullName && <p className="mt-1 text-xs text-red-400">{profileErrors.fullName}</p>}
                     </div>
 
                     {/* Email */}
@@ -549,11 +591,12 @@ export default function AccountPage() {
                         <input
                           type="email"
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
+                          onChange={(e) => { setEmail(e.target.value); setProfileErrors(fe => ({ ...fe, email: null })); }}
                           placeholder="vous@exemple.com"
-                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          className={`w-full pl-12 pr-4 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${profileErrors.email ? 'border-red-500' : 'border-slate-600'}`}
                         />
                       </div>
+                      {profileErrors.email && <p className="mt-1 text-xs text-red-400">{profileErrors.email}</p>}
                     </div>
 
                     {/* Phone */}
@@ -566,11 +609,12 @@ export default function AccountPage() {
                         <input
                           type="tel"
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
+                          onChange={(e) => { setPhone(e.target.value); setProfileErrors(fe => ({ ...fe, phone: null })); }}
                           placeholder="+33 6 12 34 56 78"
-                          className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          className={`w-full pl-12 pr-4 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${profileErrors.phone ? 'border-red-500' : 'border-slate-600'}`}
                         />
                       </div>
+                      {profileErrors.phone && <p className="mt-1 text-xs text-red-400">{profileErrors.phone}</p>}
                     </div>
 
                     {/* Sex and Birthdate */}
@@ -599,10 +643,12 @@ export default function AccountPage() {
                           <input
                             type="date"
                             value={birthdate}
-                            onChange={(e) => setBirthdate(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
+                            onChange={(e) => { setBirthdate(e.target.value); setProfileErrors(fe => ({ ...fe, birthdate: null })); }}
+                            max={new Date().toISOString().split('T')[0]}
+                            className={`w-full pl-12 pr-4 py-3 bg-slate-700 border rounded-xl text-white text-sm focus:outline-none focus:border-teal-500 ${profileErrors.birthdate ? 'border-red-500' : 'border-slate-600'}`}
                           />
                         </div>
+                        {profileErrors.birthdate && <p className="mt-1 text-xs text-red-400">{profileErrors.birthdate}</p>}
                       </div>
                     </div>
 
@@ -668,9 +714,9 @@ export default function AccountPage() {
                         <input
                           type={showCurrentPwd ? 'text' : 'password'}
                           value={currentPwd}
-                          onChange={(e) => setCurrentPwd(e.target.value)}
+                          onChange={(e) => { setCurrentPwd(e.target.value); setPwdErrors(fe => ({ ...fe, currentPwd: null })); }}
                           placeholder="••••••••"
-                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          className={`w-full pl-12 pr-12 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${pwdErrors.currentPwd ? 'border-red-500' : 'border-slate-600'}`}
                         />
                         <button
                           type="button"
@@ -680,6 +726,7 @@ export default function AccountPage() {
                           {showCurrentPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
+                      {pwdErrors.currentPwd && <p className="mt-1 text-xs text-red-400">{pwdErrors.currentPwd}</p>}
                     </div>
 
                     {/* New Password */}
@@ -692,9 +739,9 @@ export default function AccountPage() {
                         <input
                           type={showNewPwd ? 'text' : 'password'}
                           value={newPwd}
-                          onChange={(e) => setNewPwd(e.target.value)}
+                          onChange={(e) => { setNewPwd(e.target.value); setPwdErrors(fe => ({ ...fe, newPwd: null })); }}
                           placeholder="••••••••"
-                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          className={`w-full pl-12 pr-12 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${pwdErrors.newPwd ? 'border-red-500' : 'border-slate-600'}`}
                         />
                         <button
                           type="button"
@@ -704,7 +751,7 @@ export default function AccountPage() {
                           {showNewPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
-                      <p className="mt-1 text-xs text-slate-500">Minimum 6 caractères</p>
+                      {pwdErrors.newPwd ? <p className="mt-1 text-xs text-red-400">{pwdErrors.newPwd}</p> : <p className="mt-1 text-xs text-slate-500">Minimum 6 caractères</p>}
                     </div>
 
                     {/* Confirm Password */}
@@ -717,9 +764,9 @@ export default function AccountPage() {
                         <input
                           type={showConfirmPwd ? 'text' : 'password'}
                           value={confirmPwd}
-                          onChange={(e) => setConfirmPwd(e.target.value)}
+                          onChange={(e) => { setConfirmPwd(e.target.value); setPwdErrors(fe => ({ ...fe, confirmPwd: null })); }}
                           placeholder="••••••••"
-                          className="w-full pl-12 pr-12 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                          className={`w-full pl-12 pr-12 py-3 bg-slate-700 border rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500 ${pwdErrors.confirmPwd ? 'border-red-500' : 'border-slate-600'}`}
                         />
                         <button
                           type="button"
@@ -729,6 +776,7 @@ export default function AccountPage() {
                           {showConfirmPwd ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
+                      {pwdErrors.confirmPwd && <p className="mt-1 text-xs text-red-400">{pwdErrors.confirmPwd}</p>}
                     </div>
                   </div>
                 </div>
@@ -998,32 +1046,59 @@ export default function AccountPage() {
             {activeTab === 'billing' && (
               <div className="space-y-6">
                 <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-                  <h2 className="text-lg font-semibold text-white mb-1">Facturation</h2>
-                  <p className="text-sm text-slate-400 mb-6">
-                    Gérez vos moyens de paiement et consultez votre historique.
-                  </p>
+                  <h2 className="text-lg font-semibold text-white mb-1">Historique des factures</h2>
+                  <p className="text-sm text-slate-400 mb-4">Consultez vos factures et reçus de consultation.</p>
 
-                  <div className="bg-slate-700/50 rounded-xl p-8 text-center">
-                    <CreditCard className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-white mb-2">Aucun moyen de paiement</h3>
-                    <p className="text-sm text-slate-400 mb-4">
-                      Vous n'avez pas encore ajouté de moyen de paiement.
-                    </p>
-                    <button
-                      type="button"
-                      className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-500 transition-colors"
-                    >
-                      Ajouter une carte
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
-                  <h2 className="text-lg font-semibold text-white mb-4">Historique des paiements</h2>
-                  <div className="text-center py-8 text-slate-400">
-                    <FileText className="w-10 h-10 mx-auto mb-3 text-slate-500" />
-                    <p className="text-sm">Aucun paiement pour le moment</p>
-                  </div>
+                  {invoicesLoading ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
+                    </div>
+                  ) : invoices.length === 0 ? (
+                    <div className="text-center py-8">
+                      <FileText className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                      <p className="text-sm text-slate-400">Aucune facture pour le moment</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {invoices.map((inv) => {
+                        const amount = inv.totalAmount ?? inv.amount ?? 0;
+                        const currency = inv.currency ?? 'XAF';
+                        const statusColors: Record<string, string> = {
+                          PAID: 'bg-green-500/20 text-green-400',
+                          PENDING: 'bg-amber-500/20 text-amber-400',
+                          CANCELLED: 'bg-red-500/20 text-red-400',
+                          OVERDUE: 'bg-red-500/20 text-red-400',
+                        };
+                        const statusLabels: Record<string, string> = {
+                          PAID: 'Payée', PENDING: 'En attente', CANCELLED: 'Annulée', OVERDUE: 'En retard',
+                        };
+                        return (
+                          <div key={inv.id} className="flex items-center justify-between p-4 bg-slate-700/40 rounded-xl border border-slate-600">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-teal-500/10 rounded-lg flex items-center justify-center">
+                                <FileText className="w-5 h-5 text-teal-400" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-white">{inv.number ?? `Facture #${inv.id.slice(-6)}`}</p>
+                                <p className="text-xs text-slate-400">
+                                  {inv.doctor?.fullName ? `Dr. ${inv.doctor.fullName} • ` : ''}
+                                  {new Date(inv.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${statusColors[inv.status] ?? 'bg-slate-500/20 text-slate-400'}`}>
+                                {statusLabels[inv.status] ?? inv.status}
+                              </span>
+                              <span className="text-sm font-semibold text-white">
+                                {amount.toLocaleString('fr-FR')} {currency}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1053,12 +1128,13 @@ export default function AccountPage() {
                         <label className="block text-xs font-medium text-slate-400 mb-1">Sujet *</label>
                         <input
                           type="text"
-                          required
                           value={ticketTitle}
-                          onChange={(e) => setTicketTitle(e.target.value)}
+                          onChange={(e) => { setTicketTitle(e.target.value); setTicketFieldErrors(fe => ({ ...fe, ticketTitle: null })); }}
                           placeholder="Décrivez brièvement votre problème"
-                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          maxLength={200}
+                          className={`w-full px-3 py-2 bg-slate-700 border rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 ${ticketFieldErrors.ticketTitle ? 'border-red-500' : 'border-slate-600'}`}
                         />
+                        {ticketFieldErrors.ticketTitle && <p className="mt-1 text-xs text-red-400">{ticketFieldErrors.ticketTitle}</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1093,13 +1169,14 @@ export default function AccountPage() {
                       <div>
                         <label className="block text-xs font-medium text-slate-400 mb-1">Description *</label>
                         <textarea
-                          required
                           rows={4}
                           value={ticketDescription}
-                          onChange={(e) => setTicketDescription(e.target.value)}
+                          onChange={(e) => { setTicketDescription(e.target.value); setTicketFieldErrors(fe => ({ ...fe, ticketDescription: null })); }}
                           placeholder="Décrivez votre problème en détail..."
-                          className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                          maxLength={2000}
+                          className={`w-full px-3 py-2 bg-slate-700 border rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none ${ticketFieldErrors.ticketDescription ? 'border-red-500' : 'border-slate-600'}`}
                         />
+                        {ticketFieldErrors.ticketDescription && <p className="mt-1 text-xs text-red-400">{ticketFieldErrors.ticketDescription}</p>}
                       </div>
                       {ticketErr && <p className="text-sm text-red-400">{ticketErr}</p>}
                       <div className="flex gap-3 justify-end">

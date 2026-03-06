@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { required, maxLen, minLen, hasErrors, type FormErrors } from '@/lib/validation';
 import { useRouter } from 'next/navigation';
 import {
   Pill,
@@ -492,14 +493,19 @@ function UploadModal({
   const [fileSize, setFileSize] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FormErrors<'fileUrl' | 'fileName' | 'title' | 'description'>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!fileUrl || !fileName) {
-      setError('Veuillez entrer l\'URL du fichier et un nom');
-      return;
-    }
+    const errors: typeof fieldErrors = {
+      fileUrl: required(fileUrl, 'URL du fichier'),
+      fileName: required(fileName, 'Nom du fichier') ?? minLen(fileName, 1, 'Nom du fichier') ?? maxLen(fileName, 200, 'Nom du fichier'),
+      title: title ? maxLen(title, 200, 'Titre') : null,
+      description: description ? maxLen(description, 500, 'Description') : null,
+    };
+    setFieldErrors(errors);
+    if (hasErrors(errors)) return;
 
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -578,11 +584,11 @@ function UploadModal({
             <input
               type="url"
               value={fileUrl}
-              onChange={(e) => setFileUrl(e.target.value)}
+              onChange={(e) => { setFileUrl(e.target.value); setFieldErrors(fe => ({ ...fe, fileUrl: null })); }}
               placeholder="https://example.com/document.pdf"
-              required
-              className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+              className={`w-full px-4 py-2.5 bg-slate-900 border rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all ${fieldErrors.fileUrl ? 'border-red-500' : 'border-slate-700'}`}
             />
+            {fieldErrors.fileUrl && <p className="mt-1 text-xs text-red-400">{fieldErrors.fileUrl}</p>}
             <p className="text-xs text-slate-500 mt-1.5">
               Uploadez votre fichier sur un service cloud et collez le lien ici
             </p>
@@ -595,11 +601,12 @@ function UploadModal({
             <input
               type="text"
               value={fileName}
-              onChange={(e) => setFileName(e.target.value)}
+              onChange={(e) => { setFileName(e.target.value); setFieldErrors(fe => ({ ...fe, fileName: null })); }}
               placeholder="ordonnance-2024.pdf"
-              required
-              className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+              maxLength={200}
+              className={`w-full px-4 py-2.5 bg-slate-900 border rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all ${fieldErrors.fileName ? 'border-red-500' : 'border-slate-700'}`}
             />
+            {fieldErrors.fileName && <p className="mt-1 text-xs text-red-400">{fieldErrors.fileName}</p>}
           </div>
 
           <div>
@@ -609,10 +616,12 @@ function UploadModal({
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => { setTitle(e.target.value); setFieldErrors(fe => ({ ...fe, title: null })); }}
               placeholder="Ordonnance Dr. Martin"
+              maxLength={200}
               className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
             />
+            {fieldErrors.title && <p className="mt-1 text-xs text-red-400">{fieldErrors.title}</p>}
           </div>
 
           <div>
@@ -655,11 +664,13 @@ function UploadModal({
             </label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => { setDescription(e.target.value); setFieldErrors(fe => ({ ...fe, description: null })); }}
               placeholder="Notes supplémentaires..."
               rows={3}
+              maxLength={500}
               className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all resize-none"
             />
+            {fieldErrors.description && <p className="mt-1 text-xs text-red-400">{fieldErrors.description}</p>}
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-900 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
