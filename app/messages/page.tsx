@@ -195,7 +195,7 @@ function MessagesPageContent() {
         const message: Message = {
           id: sent.id,
           senderId: currentUserId,
-          content: sent.content,
+          content,  // Use original plaintext, not the API response (avoids encryption display bug)
           timestamp: sent.createdAt,
           read: false,
           type: 'text',
@@ -206,7 +206,7 @@ function MessagesPageContent() {
             ? {
                 ...c,
                 messages: [...c.messages, message],
-                lastMessage: message.content,
+                lastMessage: content,
                 lastMessageTime: message.timestamp,
               }
             : c
@@ -216,6 +216,8 @@ function MessagesPageContent() {
           ...prev,
           messages: [...prev.messages, message],
         } : null);
+      } else {
+        setNewMessage(content);
       }
     } catch (error) {
       console.error('Error sending message:', error);

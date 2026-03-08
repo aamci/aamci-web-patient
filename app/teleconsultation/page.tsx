@@ -10,17 +10,12 @@ import {
   Phone,
   PhoneOff,
   MessageSquare,
-  Settings,
   Maximize2,
   Minimize2,
   MonitorUp,
-  Users,
-  Clock,
   RefreshCw,
-  AlertTriangle,
   Check,
   X,
-  Camera,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -30,7 +25,6 @@ interface CallState {
   duration: number;
   doctorName: string;
   doctorSpecialty: string;
-  doctorAvatar?: string;
 }
 
 function getApiBase(): string {
@@ -48,7 +42,6 @@ function TeleconsultationPageContent() {
   const apiBase = useMemo(() => getApiBase(), []);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [callState, setCallState] = useState<CallState>({
     status: 'idle',
     duration: 0,
@@ -62,15 +55,40 @@ function TeleconsultationPageContent() {
   const [isSpeakerOff, setIsSpeakerOff] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [audioLevel, setAudioLevel] = useState(0);
+
+  // Media refs
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animFrameRef = useRef<number>(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Camera started flag — video element only renders when true
+  const [cameraStarted, setCameraStarted] = useState(false);
+
+  // Assign srcObject AFTER <video> element mounts (conditional rendering fix)
+  useEffect(() => {
+    if (cameraStarted && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [cameraStarted]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
   const [newChatMessage, setNewChatMessage] = useState('');
-
-  // Timer ref
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -83,7 +101,6 @@ function TeleconsultationPageContent() {
       try {
         const headers = { Authorization: `Bearer ${token}` };
 
-        // Fetch appointment data if appointmentId provided
         if (appointmentId) {
           const res = await fetch(`${apiBase}/appointments/${appointmentId}`, { headers, cache: 'no-store' });
           if (res.ok) {
@@ -96,7 +113,6 @@ function TeleconsultationPageContent() {
             }));
           }
         } else if (doctorId) {
-          // Fetch doctor profile directly
           const res = await fetch(`${apiBase}/doctor-profiles/${doctorId}`, { headers, cache: 'no-store' });
           if (res.ok) {
             const profile = await res.json();
@@ -108,7 +124,6 @@ function TeleconsultationPageContent() {
           }
         }
 
-        // Notify API that video session started
         if (appointmentId) {
           await fetch(`${apiBase}/appointments/${appointmentId}/start-video`, {
             method: 'POST',
@@ -116,10 +131,9 @@ function TeleconsultationPageContent() {
           }).catch(() => null);
         }
       } catch {
-        // Non-critical — continue with defaults
+        // Non-critical
       } finally {
         setLoading(false);
-        setTimeout(() => startCall(), 500);
       }
     };
 
@@ -131,23 +145,63 @@ function TeleconsultationPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId, doctorId, apiBase]);
 
-  const startCall = () => {
-    setCallState(prev => ({ ...prev, status: 'connecting' }));
+  const startAudioAnalyzer = (stream: MediaStream) => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      audioContextRef.current = ctx;
+      analyserRef.current = analyser;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        analyser.getByteFrequencyData(dataArray);
+        setAudioLevel(dataArray.reduce((a, b) => a + b, 0) / dataArray.length);
+        animFrameRef.current = requestAnimationFrame(tick);
+      };
+      animFrameRef.current = requestAnimationFrame(tick);
+    } catch {
+      // AudioContext not available
+    }
+  };
 
-    // Simulate connection
+  const stopCamera = () => {
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
+    cancelAnimationFrame(animFrameRef.current);
+    audioContextRef.current?.close().catch(() => null);
+    audioContextRef.current = null;
+    analyserRef.current = null;
+    setAudioLevel(0);
+    setCameraStarted(false);
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      startAudioAnalyzer(stream);
+      setCameraStarted(true);
+    } catch {
+      setCameraError("Impossible d'accéder à la caméra ou au microphone. Vérifiez les permissions.");
+    }
+  };
+
+  const startCall = async () => {
+    setCallState(prev => ({ ...prev, status: 'connecting' }));
+    await startCamera();
+
     setTimeout(() => {
       setCallState(prev => ({ ...prev, status: 'ringing' }));
 
-      // Simulate doctor answering
       setTimeout(() => {
         setCallState(prev => ({ ...prev, status: 'connected' }));
-
-        // Start timer
         timerRef.current = setInterval(() => {
           setCallState(prev => ({ ...prev, duration: prev.duration + 1 }));
         }, 1000);
       }, 3000);
-    }, 2000);
+    }, 1500);
   };
 
   const endCall = useCallback(async () => {
@@ -155,9 +209,9 @@ function TeleconsultationPageContent() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    stopCamera();
     setCallState(prev => ({ ...prev, status: 'ended' }));
 
-    // Notify API that video session ended
     if (appointmentId) {
       const token = localStorage.getItem('token');
       if (token) {
@@ -167,7 +221,59 @@ function TeleconsultationPageContent() {
         }).catch(() => null);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointmentId, apiBase]);
+
+  const toggleMic = () => {
+    if (!localStreamRef.current) return;
+    const newMuted = !isMuted;
+    localStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !newMuted; });
+    setIsMuted(newMuted);
+  };
+
+  const toggleVideo = () => {
+    if (!localStreamRef.current) return;
+    const newOff = !isVideoOff;
+    localStreamRef.current.getVideoTracks().forEach(t => { t.enabled = !newOff; });
+    setIsVideoOff(newOff);
+  };
+
+  const toggleScreenShare = async () => {
+    if (!localStreamRef.current) return;
+    if (isScreenSharing) {
+      // Stop screen share, restore camera
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) videoTrack.stop();
+
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const camTrack = camStream.getVideoTracks()[0];
+        localStreamRef.current.removeTrack(localStreamRef.current.getVideoTracks()[0]);
+        localStreamRef.current.addTrack(camTrack);
+      } catch { /* ignore */ }
+
+      setIsScreenSharing(false);
+    } else {
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        const oldTrack = localStreamRef.current.getVideoTracks()[0];
+        if (oldTrack) {
+          oldTrack.stop();
+          localStreamRef.current.removeTrack(oldTrack);
+        }
+        localStreamRef.current.addTrack(screenTrack);
+        screenTrack.onended = () => setIsScreenSharing(false);
+        setIsScreenSharing(true);
+      } catch { /* user cancelled */ }
+    }
+
+    // Force video element to refresh
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = null;
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  };
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -181,7 +287,6 @@ function TeleconsultationPageContent() {
 
   const sendChatMessage = () => {
     if (!newChatMessage.trim()) return;
-
     setChatMessages(prev => [...prev, {
       sender: 'user',
       text: newChatMessage.trim(),
@@ -198,11 +303,11 @@ function TeleconsultationPageContent() {
 
   const getInitials = (name: string) => {
     const parts = name.replace('Dr. ', '').split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return name.slice(0, 2).toUpperCase();
   };
+
+  const isSpeaking = audioLevel > 15;
 
   if (loading) {
     return (
@@ -216,10 +321,7 @@ function TeleconsultationPageContent() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="min-h-screen bg-slate-900 flex flex-col"
-    >
+    <div ref={containerRef} className="min-h-screen bg-slate-900 flex flex-col">
       {/* Header */}
       <div className="bg-slate-800 border-b border-slate-700 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -237,11 +339,9 @@ function TeleconsultationPageContent() {
           </div>
 
           {callState.status === 'connected' && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-full">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-sm font-medium">{formatDuration(callState.duration)}</span>
-              </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-full">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium">{formatDuration(callState.duration)}</span>
             </div>
           )}
         </div>
@@ -251,13 +351,17 @@ function TeleconsultationPageContent() {
       <div className="flex-1 flex">
         {/* Video Area */}
         <div className="flex-1 relative bg-slate-950">
-          {/* Remote Video (Doctor) */}
           <div className="absolute inset-0 flex items-center justify-center">
+
+            {/* IDLE */}
             {callState.status === 'idle' && (
               <div className="text-center">
                 <Video className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">Prêt pour la consultation</h2>
-                <p className="text-slate-400 mb-6">Vérifiez votre caméra et microphone avant de commencer</p>
+                <p className="text-slate-400 mb-2">Vérifiez votre caméra et microphone avant de commencer</p>
+                {cameraError && (
+                  <p className="text-red-400 text-sm mb-4">{cameraError}</p>
+                )}
                 <button
                   onClick={startCall}
                   className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors flex items-center gap-2 mx-auto"
@@ -268,14 +372,16 @@ function TeleconsultationPageContent() {
               </div>
             )}
 
+            {/* CONNECTING */}
             {callState.status === 'connecting' && (
               <div className="text-center">
                 <RefreshCw className="w-12 h-12 text-teal-500 animate-spin mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-white mb-2">Connexion en cours...</h2>
-                <p className="text-slate-400">Veuillez patienter</p>
+                <p className="text-slate-400">Démarrage de la caméra</p>
               </div>
             )}
 
+            {/* RINGING */}
             {callState.status === 'ringing' && (
               <div className="text-center">
                 <div className="w-24 h-24 rounded-full bg-teal-600 flex items-center justify-center text-2xl font-bold text-white mx-auto mb-4 animate-pulse">
@@ -291,9 +397,10 @@ function TeleconsultationPageContent() {
               </div>
             )}
 
+            {/* CONNECTED */}
             {callState.status === 'connected' && (
               <>
-                {/* Simulated doctor video - would be real video stream */}
+                {/* Remote video placeholder (doctor side) */}
                 <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
                   <div className="text-center">
                     <div className="w-32 h-32 rounded-full bg-teal-600 flex items-center justify-center text-4xl font-bold text-white mx-auto mb-4">
@@ -304,21 +411,46 @@ function TeleconsultationPageContent() {
                   </div>
                 </div>
 
-                {/* Local Video (Self) */}
-                <div className="absolute bottom-4 right-4 w-48 h-36 bg-slate-800 rounded-xl overflow-hidden border-2 border-slate-600 shadow-lg">
+                {/* Audio level bars (top-right) */}
+                <div className="absolute top-4 right-4 flex items-end gap-0.5 h-8">
+                  {[0.3, 0.5, 0.7, 0.5, 0.3].map((base, i) => {
+                    const barHeight = isSpeaking
+                      ? Math.max(4, Math.min(32, (audioLevel / 255) * 32 * base * 3))
+                      : 4;
+                    return (
+                      <div
+                        key={i}
+                        className={`w-1.5 rounded-full transition-all duration-75 ${isSpeaking ? 'bg-teal-400' : 'bg-slate-600'}`}
+                        style={{ height: `${barHeight}px` }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Local video (self) */}
+                <div className="absolute bottom-24 right-4 w-48 h-36 bg-slate-800 rounded-xl overflow-hidden border-2 border-slate-600 shadow-lg">
                   {isVideoOff ? (
                     <div className="w-full h-full flex items-center justify-center">
                       <VideoOff className="w-8 h-8 text-slate-500" />
                     </div>
+                  ) : cameraStarted ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover scale-x-[-1]"
+                    />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center">
-                      <Camera className="w-8 h-8 text-slate-500" />
+                    <div className="w-full h-full flex items-center justify-center">
+                      <RefreshCw className="w-6 h-6 text-slate-500 animate-spin" />
                     </div>
                   )}
                 </div>
               </>
             )}
 
+            {/* ENDED */}
             {callState.status === 'ended' && (
               <div className="text-center">
                 <Check className="w-16 h-16 text-green-500 mx-auto mb-4" />
@@ -342,20 +474,26 @@ function TeleconsultationPageContent() {
             )}
           </div>
 
-          {/* Controls */}
+          {/* Controls bar */}
           {(callState.status === 'connected' || callState.status === 'ringing') && (
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3">
-              <button
-                onClick={() => setIsMuted(!isMuted)}
-                className={`p-4 rounded-full transition-colors ${
-                  isMuted ? 'bg-red-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'
-                }`}
-              >
-                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-              </button>
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3">
+              {/* Mic with pulsing ring when speaking */}
+              <div className="relative">
+                {isSpeaking && !isMuted && (
+                  <span className="absolute inset-0 rounded-full bg-teal-500/40 animate-ping" />
+                )}
+                <button
+                  onClick={toggleMic}
+                  className={`relative p-4 rounded-full transition-colors ${
+                    isMuted ? 'bg-red-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'
+                  }`}
+                >
+                  {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                </button>
+              </div>
 
               <button
-                onClick={() => setIsVideoOff(!isVideoOff)}
+                onClick={toggleVideo}
                 className={`p-4 rounded-full transition-colors ${
                   isVideoOff ? 'bg-red-500 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'
                 }`}
@@ -368,6 +506,15 @@ function TeleconsultationPageContent() {
                 className="p-4 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
               >
                 <PhoneOff className="w-6 h-6" />
+              </button>
+
+              <button
+                onClick={toggleScreenShare}
+                className={`p-4 rounded-full transition-colors ${
+                  isScreenSharing ? 'bg-teal-600 text-white' : 'bg-slate-700 text-white hover:bg-slate-600'
+                }`}
+              >
+                <MonitorUp className="w-6 h-6" />
               </button>
 
               <button
@@ -406,16 +553,14 @@ function TeleconsultationPageContent() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.length === 0 && (
+                <p className="text-slate-500 text-sm text-center mt-4">Aucun message</p>
+              )}
               {chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.sender === 'user' ? 'justify-end' : ''}`}
-                >
+                <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : ''}`}>
                   <div
                     className={`max-w-[80%] px-3 py-2 rounded-lg ${
-                      msg.sender === 'user'
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-slate-700 text-white'
+                      msg.sender === 'user' ? 'bg-teal-600 text-white' : 'bg-slate-700 text-white'
                     }`}
                   >
                     <p className="text-sm">{msg.text}</p>
@@ -432,7 +577,7 @@ function TeleconsultationPageContent() {
                   placeholder="Message..."
                   value={newChatMessage}
                   onChange={e => setNewChatMessage(e.target.value)}
-                  onKeyPress={e => e.key === 'Enter' && sendChatMessage()}
+                  onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
                   className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
                 />
                 <button

@@ -504,27 +504,27 @@ export default function HealthRecordsPage() {
                   </div>
                   <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                     <Heart className="w-6 h-6 text-pink-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white">{vitals.heartRate}</div>
+                    <div className="text-xl font-bold text-white">{Number(vitals.heartRate).toFixed(1)}</div>
                     <div className="text-xs text-slate-400">Pouls (bpm)</div>
                   </div>
                   <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                     <Thermometer className="w-6 h-6 text-orange-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white">{vitals.temperature}°C</div>
+                    <div className="text-xl font-bold text-white">{Number(vitals.temperature).toFixed(1)}°C</div>
                     <div className="text-xs text-slate-400">Température</div>
                   </div>
                   <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                     <Scale className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white">{vitals.weight} kg</div>
+                    <div className="text-xl font-bold text-white">{Number(vitals.weight).toFixed(1)} kg</div>
                     <div className="text-xs text-slate-400">Poids</div>
                   </div>
                   <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                     <Ruler className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white">{vitals.height} cm</div>
+                    <div className="text-xl font-bold text-white">{Number(vitals.height).toFixed(1)} cm</div>
                     <div className="text-xs text-slate-400">Taille</div>
                   </div>
                   <div className="bg-slate-700/50 rounded-xl p-4 text-center">
                     <User className="w-6 h-6 text-purple-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white">{vitals.bmi}</div>
+                    <div className="text-xl font-bold text-white">{Number(vitals.bmi).toFixed(1)}</div>
                     <div className="text-xs text-slate-400">IMC</div>
                   </div>
                 </div>
