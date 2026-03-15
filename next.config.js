@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'standalone', // <- add this
-  env: {
-    NEXT_PUBLIC_API_BASE_URL: 'https://api-ieis.onrender.com',
-  },
+  output: 'standalone',
+  // NEXT_PUBLIC_API_BASE_URL is injected at build time via ARG in Dockerfile
+  // or via NEXT_PUBLIC_API_BASE_URL env var at runtime for dev
   experimental: { typedRoutes: true },
 };
 module.exports = nextConfig;
