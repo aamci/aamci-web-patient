@@ -801,11 +801,11 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
       {/* Booking Modal - Multi-step */}
       {selectedSlot && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg overflow-hidden">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md flex flex-col max-h-[90vh]">
             {/* Header with steps */}
-            <div className="px-6 py-4 border-b border-slate-700">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">
+            <div className="px-5 py-3 border-b border-slate-700 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-white">
                   {bookingSuccess ? 'Confirmation' :
                    bookingStep === 'pour_qui' ? 'Pour qui ?' :
                    bookingStep === 'type' ? 'Type de consultation' :
@@ -822,13 +822,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
               {/* Progress steps */}
               {!bookingSuccess && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {['pour_qui', 'type', 'details', 'payment', 'confirm'].map((step, idx) => {
                     const STEPS = ['pour_qui', 'type', 'details', 'payment', 'confirm'];
                     const currentIdx = STEPS.indexOf(bookingStep);
                     return (
                       <div key={step} className="flex items-center flex-1">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium transition-colors ${
                           bookingStep === step ? 'bg-teal-600 text-white' :
                           currentIdx > idx ? 'bg-teal-600/30 text-teal-400' :
                           'bg-slate-700 text-slate-500'
@@ -836,7 +836,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                           {idx + 1}
                         </div>
                         {idx < 4 && (
-                          <div className={`flex-1 h-1 mx-1 rounded ${
+                          <div className={`flex-1 h-0.5 mx-0.5 rounded ${
                             currentIdx > idx ? 'bg-teal-600/50' : 'bg-slate-700'
                           }`} />
                         )}
@@ -848,7 +848,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
             </div>
 
             {/* Content */}
-            <div className="p-6">
+            <div className="p-4 overflow-y-auto flex-1">
               {bookingSuccess ? (
                 <div className="text-center py-6">
                   <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -860,31 +860,25 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               ) : (
                 <>
                   {/* Date/time info - always visible */}
-                  <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-teal-600/20 rounded-xl flex items-center justify-center">
-                        <Calendar className="w-6 h-6 text-teal-400" />
+                  <div className="bg-slate-700/50 rounded-xl p-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 bg-teal-600/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Calendar className="w-4 h-4 text-teal-400" />
                       </div>
-                      <div className="flex-1">
-                        <div className="text-white font-medium">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-white text-sm font-medium">
                           {DAYS_FULL[new Date(selectedSlot.start).getDay()]}{' '}
                           {new Date(selectedSlot.start).getDate()}{' '}
                           {MONTHS[new Date(selectedSlot.start).getMonth()]}
                         </div>
-                        <div className="text-slate-400 text-sm">
-                          {new Date(selectedSlot.start).toLocaleTimeString('fr-FR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {' - '}
-                          {new Date(selectedSlot.end).toLocaleTimeString('fr-FR', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                        <div className="text-slate-400 text-xs">
+                          {new Date(selectedSlot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          {' – '}
+                          {new Date(selectedSlot.end).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-xl font-bold text-teal-400">{getBookingPrice()} €</div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-base font-bold text-teal-400">{getBookingPrice()} €</div>
                         <div className="text-xs text-slate-500">Consultation</div>
                       </div>
                     </div>
@@ -892,26 +886,26 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
                   {/* Step 0: Pour qui */}
                   {bookingStep === 'pour_qui' && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-slate-400 mb-4">Pour qui prenez-vous rendez-vous ?</p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-400 mb-2">Pour qui prenez-vous rendez-vous ?</p>
                       <button
                         onClick={() => setBookingFor('me')}
-                        className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                        className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
                           bookingFor === 'me'
                             ? 'border-teal-500 bg-teal-600/10'
                             : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-teal-600/20 flex items-center justify-center">
-                            <User className="w-5 h-5 text-teal-400" />
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-teal-600/20 flex items-center justify-center">
+                            <User className="w-4 h-4 text-teal-400" />
                           </div>
                           <div>
-                            <div className="font-medium text-white">{user?.fullName || 'Moi'}</div>
-                            <div className="text-sm text-slate-400">Moi-même</div>
+                            <div className="text-sm font-medium text-white">{user?.fullName || 'Moi'}</div>
+                            <div className="text-xs text-slate-400">Moi-même</div>
                           </div>
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
                           bookingFor === 'me' ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
                         }`}>
                           {bookingFor === 'me' && <Check className="w-full h-full text-white p-0.5" />}
@@ -920,22 +914,22 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
                       <button
                         onClick={() => setBookingFor('other')}
-                        className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                        className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
                           bookingFor === 'other'
                             ? 'border-teal-500 bg-teal-600/10'
                             : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-slate-600 flex items-center justify-center">
-                            <User className="w-5 h-5 text-slate-400" />
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center">
+                            <User className="w-4 h-4 text-slate-400" />
                           </div>
                           <div>
-                            <div className="font-medium text-white">Quelqu'un d'autre</div>
-                            <div className="text-sm text-slate-400">Proche, famille...</div>
+                            <div className="text-sm font-medium text-white">Quelqu'un d'autre</div>
+                            <div className="text-xs text-slate-400">Proche, famille...</div>
                           </div>
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 ${
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
                           bookingFor === 'other' ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
                         }`}>
                           {bookingFor === 'other' && <Check className="w-full h-full text-white p-0.5" />}
@@ -965,47 +959,41 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
                   {/* Step 1: Type selection */}
                   {bookingStep === 'type' && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-slate-400 mb-4">Sélectionnez le type de consultation</p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-400 mb-2">Sélectionnez le type de consultation</p>
                       {appointmentKinds.length > 0 ? (
                         appointmentKinds.map((kind) => (
                           <button
                             key={kind.id}
                             onClick={() => setSelectedKind(kind.id)}
-                            className={`w-full p-4 rounded-xl border-2 transition-all text-left ${
+                            className={`w-full p-3 rounded-xl border-2 transition-all text-left ${
                               selectedKind === kind.id
                                 ? 'border-teal-500 bg-teal-600/10'
                                 : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
                             }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-white">{kind.label}</div>
-                                <div className="text-sm text-slate-400">
-                                  Durée : {kind.durationMinutes} minutes
-                                </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-white truncate">{kind.label}</div>
+                                <div className="text-xs text-slate-400">{kind.durationMinutes} min</div>
                               </div>
-                              <div className="text-right">
+                              <div className="flex items-center gap-2 flex-shrink-0">
                                 {kind.price && (
-                                  <div className="text-lg font-bold text-white">{kind.price} €</div>
+                                  <div className="text-sm font-bold text-white">{kind.price} €</div>
                                 )}
-                                <div className={`w-5 h-5 rounded-full border-2 ${
-                                  selectedKind === kind.id
-                                    ? 'border-teal-500 bg-teal-500'
-                                    : 'border-slate-500'
+                                <div className={`w-4 h-4 rounded-full border-2 ${
+                                  selectedKind === kind.id ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
                                 }`}>
-                                  {selectedKind === kind.id && (
-                                    <Check className="w-full h-full text-white p-0.5" />
-                                  )}
+                                  {selectedKind === kind.id && <Check className="w-full h-full text-white p-0.5" />}
                                 </div>
                               </div>
                             </div>
                           </button>
                         ))
                       ) : (
-                        <div className="p-4 rounded-xl border-2 border-teal-500 bg-teal-600/10">
-                          <div className="font-medium text-white">Consultation standard</div>
-                          <div className="text-sm text-slate-400">Durée : 30 minutes</div>
+                        <div className="p-3 rounded-xl border-2 border-teal-500 bg-teal-600/10">
+                          <div className="text-sm font-medium text-white">Consultation standard</div>
+                          <div className="text-xs text-slate-400">30 min</div>
                         </div>
                       )}
                     </div>
@@ -1226,7 +1214,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
 
             {/* Footer */}
             {!bookingSuccess && (
-              <div className="flex gap-3 px-6 py-4 border-t border-slate-700">
+              <div className="flex gap-2 px-4 py-3 border-t border-slate-700 flex-shrink-0">
                 <button
                   onClick={() => {
                     if (bookingStep === 'pour_qui') {
