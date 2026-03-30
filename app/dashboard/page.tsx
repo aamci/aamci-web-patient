@@ -5,22 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/_providers/AuthProvider';
 import {
-  Calendar,
-  Clock,
-  Stethoscope,
-  Activity,
-  MessageSquare,
-  FileText,
-  Heart,
-  Bell,
-  ArrowRight,
-  Loader2,
-  Building2,
-  CheckCircle,
-  AlertCircle,
-  Pill,
-  Search,
-  Star,
+  Calendar, Clock, Stethoscope, Activity, MessageSquare, FileText,
+  Heart, Bell, ArrowRight, Loader2, Building2, CheckCircle, AlertCircle,
+  Pill, Search, Star, Video, ChevronRight, TrendingUp,
 } from 'lucide-react';
 
 interface Appointment {
@@ -29,7 +16,26 @@ interface Appointment {
   notes?: string;
   slot?: { start: string; end: string };
   doctor?: { id: string; fullName?: string; avatarUrl?: string };
-  kind?: { name: string };
+  kind?: { name: string; isTelemedicine?: boolean };
+}
+
+interface Prescription {
+  id: string;
+  medication?: string;
+  medications?: Array<{ name: string; dosage?: string }>;
+  doctorName?: string;
+  doctor?: { fullName?: string };
+  createdAt: string;
+  status?: string;
+}
+
+interface HealthRecord {
+  id: string;
+  recordType?: string;
+  type?: string;
+  title?: string;
+  createdAt: string;
+  doctor?: { fullName?: string };
 }
 
 function getApiBase(): string {
@@ -40,20 +46,23 @@ function getApiBase(): string {
 }
 
 function fmtDate(s: string) {
-  return new Date(s).toLocaleDateString('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  });
+  return new Date(s).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
-
+function fmtDateShort(s: string) {
+  return new Date(s).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+}
 function fmtTime(s: string) {
   return new Date(s).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 }
-
 function getGreeting() {
   const h = new Date().getHours();
   if (h < 12) return 'Bonjour';
   if (h < 18) return 'Bon après-midi';
   return 'Bonsoir';
+}
+function initials(name?: string) {
+  if (!name) return '?';
+  return name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
 }
 
 export default function DashboardPage() {
@@ -62,18 +71,29 @@ export default function DashboardPage() {
   const apiBase = useMemo(() => getApiBase(), []);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [healthRecord, setHealthRecord] = useState<HealthRecord | null>(null);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const authedFetch = useCallback(async (path: string) => {
     const token = localStorage.getItem('token');
-    const res = await fetch(`${apiBase}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    return res.json();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(`${apiBase}${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!res.ok) return null;
+      return res.json();
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   }, [apiBase]);
 
   useEffect(() => {
@@ -82,10 +102,11 @@ export default function DashboardPage() {
 
     (async () => {
       setLoading(true);
-      const [appts, msgs, notifs] = await Promise.all([
+      const [appts, msgs, notifs, fullHealth] = await Promise.all([
         authedFetch('/appointments'),
-        authedFetch('/messages/unread-count').catch(() => null),
-        authedFetch('/notifications').catch(() => null),
+        authedFetch('/messages/unread-count'),
+        authedFetch('/notifications/unread-count'),
+        authedFetch('/health-records/me/full'),
       ]);
 
       if (appts) {
@@ -97,9 +118,20 @@ export default function DashboardPage() {
         });
         setAppointments(list);
       }
-      if (msgs) setUnreadMessages(msgs.count ?? 0);
-      if (notifs && Array.isArray(notifs)) {
-        setUnreadNotifications(notifs.filter((n: any) => !n.read).length);
+      if (msgs) setUnreadMessages(msgs.count ?? msgs.unreadCount ?? 0);
+      if (notifs) setUnreadNotifications(notifs.count ?? notifs.unreadCount ?? 0);
+      if (fullHealth) {
+        // Ordonnances récentes
+        if (Array.isArray(fullHealth.prescriptions)) {
+          setPrescriptions(fullHealth.prescriptions.slice(0, 3));
+        }
+        // Stats dossier : compter depuis les tableaux retournés
+        setHealthRecord({
+          ...fullHealth,
+          consultationCount: Array.isArray(fullHealth.observations) ? fullHealth.observations.length : undefined,
+          prescriptionCount: Array.isArray(fullHealth.prescriptions) ? fullHealth.prescriptions.length : undefined,
+          labResultCount: Array.isArray(fullHealth.labResults) ? fullHealth.labResults.length : undefined,
+        } as any);
       }
       setLoading(false);
     })();
@@ -116,42 +148,13 @@ export default function DashboardPage() {
     const d = new Date(a.slot.start);
     return d.toDateString() === now.toDateString();
   });
+  const videoAppts = upcoming.filter((a) => a.kind?.isTelemedicine);
 
   const stats = [
-    {
-      label: 'À venir',
-      value: upcoming.length,
-      icon: Calendar,
-      color: 'text-teal-400',
-      bg: 'bg-teal-500/10',
-      href: '/appointments',
-    },
-    {
-      label: 'Messages',
-      value: unreadMessages,
-      icon: MessageSquare,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
-      href: '/messages',
-      badge: unreadMessages > 0,
-    },
-    {
-      label: 'Notifications',
-      value: unreadNotifications,
-      icon: Bell,
-      color: 'text-amber-400',
-      bg: 'bg-amber-500/10',
-      href: '/notifications',
-      badge: unreadNotifications > 0,
-    },
-    {
-      label: "Aujourd'hui",
-      value: todayAppts.length,
-      icon: Clock,
-      color: 'text-violet-400',
-      bg: 'bg-violet-500/10',
-      href: '/appointments',
-    },
+    { label: 'À venir', value: upcoming.length, icon: Calendar, color: 'text-teal-400', bg: 'bg-teal-500/10', href: '/appointments' },
+    { label: 'Messages', value: unreadMessages, icon: MessageSquare, color: 'text-blue-400', bg: 'bg-blue-500/10', href: '/messages', badge: true },
+    { label: 'Notifications', value: unreadNotifications, icon: Bell, color: 'text-amber-400', bg: 'bg-amber-500/10', href: '/notifications', badge: true },
+    { label: "Aujourd'hui", value: todayAppts.length, icon: Clock, color: 'text-violet-400', bg: 'bg-violet-500/10', href: '/appointments' },
   ];
 
   const quickActions = [
@@ -174,7 +177,7 @@ export default function DashboardPage() {
   const firstName = user?.fullName?.split(' ')[0] ?? user?.email?.split('@')[0] ?? 'vous';
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
       {/* Welcome header */}
       <div className="flex items-start justify-between gap-4">
@@ -208,138 +211,248 @@ export default function DashboardPage() {
             <div className={`w-10 h-10 ${bg} rounded-lg flex items-center justify-center mb-3 group-hover:scale-105 transition-transform`}>
               <Icon className={`w-5 h-5 ${color}`} />
             </div>
-            <div className={`text-2xl font-bold ${value > 0 && badge ? 'text-white' : 'text-white'}`}>{value}</div>
+            <div className="text-2xl font-bold text-white">{value}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
           </Link>
         ))}
       </div>
 
-      {/* Next appointment */}
-      {nextAppt ? (
+      {/* Prochain RDV + Téléconsultation */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* Prochain rendez-vous */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold text-white">Prochain rendez-vous</h2>
-            <Link href="/appointments" className="text-sm text-teal-400 hover:text-teal-300 flex items-center gap-1">
-              Voir tous <ArrowRight className="w-4 h-4" />
+            <h2 className="text-base font-semibold text-white">Prochain rendez-vous</h2>
+            <Link href="/appointments" className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1">
+              Voir tous <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="bg-gradient-to-r from-teal-900/40 to-slate-800 rounded-2xl border border-teal-500/20 p-5">
-            <div className="flex items-start gap-4">
-              {/* Date block */}
-              <div className="shrink-0 bg-teal-600/20 border border-teal-500/30 rounded-xl p-3 text-center min-w-[60px]">
-                <div className="text-teal-400 font-bold text-lg leading-none">
-                  {new Date(nextAppt.slot!.start).getDate()}
+
+          {nextAppt ? (
+            <div className="bg-gradient-to-r from-teal-900/40 to-slate-800 rounded-2xl border border-teal-500/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="shrink-0 bg-teal-600/20 border border-teal-500/30 rounded-xl p-2.5 text-center min-w-[52px]">
+                  <div className="text-teal-400 font-bold text-lg leading-none">
+                    {new Date(nextAppt.slot!.start).getDate()}
+                  </div>
+                  <div className="text-teal-400/70 text-xs mt-0.5 capitalize">
+                    {new Date(nextAppt.slot!.start).toLocaleDateString('fr-FR', { month: 'short' })}
+                  </div>
                 </div>
-                <div className="text-teal-400/70 text-xs mt-0.5 capitalize">
-                  {new Date(nextAppt.slot!.start).toLocaleDateString('fr-FR', { month: 'short' })}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-400 bg-teal-500/10 rounded-full px-2 py-0.5">
+                      <Clock className="w-3 h-3" />{fmtTime(nextAppt.slot!.start)}
+                    </span>
+                    {nextAppt.status === 'CONFIRMED' && (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-0.5">
+                        <CheckCircle className="w-3 h-3" /> Confirmé
+                      </span>
+                    )}
+                    {nextAppt.status === 'PENDING' && (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 rounded-full px-2 py-0.5">
+                        <AlertCircle className="w-3 h-3" /> En attente
+                      </span>
+                    )}
+                    {nextAppt.kind?.isTelemedicine && (
+                      <span className="inline-flex items-center gap-1 text-xs text-blue-400 bg-blue-500/10 rounded-full px-2 py-0.5">
+                        <Video className="w-3 h-3" /> Visio
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-semibold text-white text-sm capitalize">{fmtDate(nextAppt.slot!.start)}</p>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                    {nextAppt.doctor?.fullName ?? 'Médecin'}{nextAppt.kind?.name ? ` • ${nextAppt.kind.name}` : ''}
+                  </p>
                 </div>
+                <Link
+                  href={nextAppt.kind?.isTelemedicine ? `/teleconsultation?appointment=${nextAppt.id}` : '/appointments'}
+                  className="shrink-0 p-2 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                >
+                  {nextAppt.kind?.isTelemedicine
+                    ? <Video className="w-4 h-4 text-blue-400" />
+                    : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                </Link>
               </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-400 bg-teal-500/10 rounded-full px-2.5 py-0.5">
-                    <Clock className="w-3 h-3" />
-                    {fmtTime(nextAppt.slot!.start)}
-                  </span>
-                  {nextAppt.status === 'CONFIRMED' && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-0.5">
-                      <CheckCircle className="w-3 h-3" /> Confirmé
-                    </span>
-                  )}
-                  {nextAppt.status === 'PENDING' && (
-                    <span className="inline-flex items-center gap-1 text-xs text-amber-400 bg-amber-500/10 rounded-full px-2 py-0.5">
-                      <AlertCircle className="w-3 h-3" /> En attente
-                    </span>
-                  )}
+              {upcoming.length > 1 && (
+                <div className="mt-3 pt-3 border-t border-slate-700/50 space-y-1.5">
+                  {upcoming.slice(1, 3).map((a) => (
+                    <div key={a.id} className="flex items-center gap-2 text-xs">
+                      <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <span className="text-slate-300 capitalize">{fmtDate(a.slot!.start)}</span>
+                      <span className="text-slate-500">{fmtTime(a.slot!.start)}</span>
+                      <span className="text-slate-500 ml-auto truncate max-w-[100px]">{a.doctor?.fullName ?? 'Médecin'}</span>
+                    </div>
+                  ))}
                 </div>
-                <p className="font-semibold text-white capitalize">{fmtDate(nextAppt.slot!.start)}</p>
-                <p className="text-sm text-slate-400 mt-0.5">
-                  {nextAppt.doctor?.fullName ?? 'Médecin'}{nextAppt.kind?.name ? ` • ${nextAppt.kind.name}` : ''}
-                </p>
-              </div>
-
+              )}
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-700 p-6 text-center">
+              <Calendar className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-white mb-1">Aucun rendez-vous à venir</p>
+              <p className="text-xs text-slate-400 mb-4">Prenez rendez-vous en quelques clics</p>
               <Link
-                href="/appointments"
-                className="shrink-0 p-2 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors"
+                href="/doctors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-xs font-medium hover:bg-teal-500 transition-colors"
               >
-                <ArrowRight className="w-4 h-4 text-slate-400" />
+                <Stethoscope className="w-3.5 h-3.5" /> Trouver un médecin
               </Link>
             </div>
-
-            {/* Upcoming list (next 2 after first) */}
-            {upcoming.length > 1 && (
-              <div className="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
-                {upcoming.slice(1, 3).map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 text-sm">
-                    <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
-                    <span className="text-slate-300 capitalize">{fmtDate(a.slot!.start)}</span>
-                    <span className="text-slate-500">{fmtTime(a.slot!.start)}</span>
-                    <span className="text-slate-500 ml-auto">{a.doctor?.fullName ?? 'Médecin'}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      ) : (
-        <div className="bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-700 p-8 text-center">
-          <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Calendar className="w-7 h-7 text-slate-600" />
+
+        {/* Téléconsultations à venir */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-white">Téléconsultations</h2>
+            <Link href="/teleconsultation" className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1">
+              Voir <ArrowRight className="w-3 h-3" />
+            </Link>
           </div>
-          <h3 className="text-base font-semibold text-white mb-1">Aucun rendez-vous à venir</h3>
-          <p className="text-sm text-slate-400 mb-5">Prenez rendez-vous avec un médecin en quelques clics</p>
-          <Link
-            href="/doctors"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-500 transition-colors"
-          >
-            <Stethoscope className="w-4 h-4" />
-            Trouver un médecin
-          </Link>
+
+          {videoAppts.length > 0 ? (
+            <div className="space-y-2">
+              {videoAppts.slice(0, 2).map((a) => (
+                <Link
+                  key={a.id}
+                  href={`/teleconsultation?appointment=${a.id}`}
+                  className="flex items-center gap-3 bg-slate-800 border border-blue-500/20 rounded-xl p-3.5 hover:border-blue-500/40 transition-colors group"
+                >
+                  <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
+                    <Video className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{a.doctor?.fullName ?? 'Médecin'}</p>
+                    <p className="text-xs text-slate-400">
+                      {fmtDateShort(a.slot!.start)} • {fmtTime(a.slot!.start)}
+                    </p>
+                  </div>
+                  <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full shrink-0">Rejoindre</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-700 p-6 text-center">
+              <Video className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-sm font-medium text-white mb-1">Aucune visio prévue</p>
+              <p className="text-xs text-slate-400">Les rendez-vous en ligne apparaîtront ici</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ordonnances récentes */}
+      {prescriptions.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <Pill className="w-4 h-4 text-violet-400" />
+              Ordonnances récentes
+            </h2>
+            <Link href="/health-records" className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1">
+              Voir tout <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl divide-y divide-slate-700/50">
+            {prescriptions.map((p) => {
+              const medName = p.medication
+                ?? p.medications?.[0]?.name
+                ?? 'Ordonnance';
+              const docName = p.doctorName ?? p.doctor?.fullName ?? 'Médecin';
+              return (
+                <div key={p.id} className="flex items-center gap-3 p-3.5">
+                  <div className="w-8 h-8 bg-violet-500/10 rounded-lg flex items-center justify-center shrink-0">
+                    <Pill className="w-4 h-4 text-violet-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{medName}</p>
+                    <p className="text-xs text-slate-400">{docName} • {fmtDateShort(p.createdAt)}</p>
+                  </div>
+                  {p.status === 'ACTIVE' && (
+                    <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full shrink-0">Active</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
-      {/* Quick actions */}
+      {/* Dossier de santé — résumé */}
+      {healthRecord && (
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-teal-400" />
+              Suivi de santé
+            </h2>
+            <Link href="/health-records" className="text-xs text-teal-400 hover:text-teal-300 flex items-center gap-1">
+              Dossier complet <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'Consultations', value: (healthRecord as any).consultationCount ?? '–', icon: Stethoscope, color: 'text-teal-400', bg: 'bg-teal-500/10' },
+              { label: 'Ordonnances', value: (healthRecord as any).prescriptionCount ?? '–', icon: Pill, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+              { label: 'Analyses', value: (healthRecord as any).labResultCount ?? '–', icon: Activity, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <div key={label} className="bg-slate-700/30 rounded-xl p-3 text-center">
+                <div className={`w-7 h-7 ${bg} rounded-lg flex items-center justify-center mx-auto mb-2`}>
+                  <Icon className={`w-3.5 h-3.5 ${color}`} />
+                </div>
+                <div className="text-lg font-bold text-white">{value}</div>
+                <div className="text-xs text-slate-500">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Accès rapide */}
       <div>
-        <h2 className="text-lg font-semibold text-white mb-3">Accès rapide</h2>
+        <h2 className="text-base font-semibold text-white mb-3">Accès rapide</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {quickActions.map(({ label, icon: Icon, href, color }) => (
             <Link
               key={label}
               href={href as any}
-              className="group flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition-all hover:-translate-y-0.5"
+              className="group flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl p-3.5 hover:border-slate-600 transition-all hover:-translate-y-0.5"
             >
-              <div className={`w-9 h-9 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform`}>
+              <div className={`w-8 h-8 bg-gradient-to-br ${color} rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform`}>
                 <Icon className="w-4 h-4 text-white" />
               </div>
               <span className="text-sm font-medium text-slate-200 group-hover:text-white transition-colors">{label}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-600 ml-auto group-hover:text-slate-400 group-hover:translate-x-0.5 transition-all" />
+              <ArrowRight className="w-3.5 h-3.5 text-slate-600 ml-auto group-hover:text-slate-400 transition-all" />
             </Link>
           ))}
         </div>
       </div>
 
-      {/* Health tips */}
-      <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-2xl border border-slate-700 p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-9 h-9 bg-emerald-500/20 rounded-lg flex items-center justify-center">
-            <Pill className="w-4 h-4 text-emerald-400" />
+      {/* Santé au quotidien */}
+      <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-2xl border border-slate-700 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+            <Heart className="w-4 h-4 text-emerald-400" />
           </div>
-          <h2 className="font-semibold text-white">Santé au quotidien</h2>
+          <h2 className="text-sm font-semibold text-white">Santé au quotidien</h2>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           {[
             { icon: '💧', label: '8 verres d\'eau / jour', color: 'text-blue-400' },
             { icon: '🏃', label: '30 min d\'activité / jour', color: 'text-green-400' },
             { icon: '😴', label: '7-8h de sommeil / nuit', color: 'text-violet-400' },
           ].map(({ icon, label, color }) => (
-            <div key={label} className="flex items-center gap-3 bg-slate-700/30 rounded-xl p-3">
+            <div key={label} className="flex flex-col items-center gap-1.5 bg-slate-700/30 rounded-xl p-3 text-center">
               <span className="text-xl">{icon}</span>
-              <span className={`text-xs font-medium ${color}`}>{label}</span>
+              <span className={`text-xs font-medium ${color} leading-tight`}>{label}</span>
             </div>
           ))}
         </div>
       </div>
+
     </div>
   );
 }

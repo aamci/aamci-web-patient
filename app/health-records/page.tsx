@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/app/_providers/AuthProvider';
 import {
   Heart,
   Activity,
@@ -92,6 +93,7 @@ interface VitalSigns {
 
 export default function HealthRecordsPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'prescriptions' | 'labs' | 'vaccinations' | 'timeline'>('overview');
   const [exporting, setExporting] = useState(false);
@@ -138,19 +140,41 @@ export default function HealthRecordsPage() {
         });
       }
 
-      // Map treatments as prescriptions
+      // Map prescriptions (API model) priorité sur treatments
+      const apiPrescriptions = data.prescriptions || [];
       const treatments = data.treatments || [];
-      setPrescriptions(treatments.map((t: any) => ({
-        id: t.id,
-        medication: t.medicationName || t.name || 'Traitement',
-        dosage: t.dosage || '',
-        frequency: t.frequency || '',
-        startDate: t.startDate || t.createdAt,
-        endDate: t.endDate,
-        doctor: t.prescribedBy?.fullName || 'Médecin',
-        status: t.status === 'ACTIVE' ? 'active' : t.status === 'COMPLETED' ? 'completed' : 'cancelled',
-        refillsRemaining: t.refillsRemaining,
-      })));
+
+      if (apiPrescriptions.length > 0) {
+        setPrescriptions(apiPrescriptions.map((p: any) => ({
+          id: p.id,
+          medication: Array.isArray(p.medications)
+            ? p.medications.map((m: any) => m.name).join(', ')
+            : p.medication || 'Ordonnance',
+          dosage: Array.isArray(p.medications) && p.medications[0]?.dosage
+            ? p.medications[0].dosage
+            : '',
+          frequency: Array.isArray(p.medications) && p.medications[0]?.frequency
+            ? p.medications[0].frequency
+            : '',
+          startDate: p.issuedAt || p.createdAt,
+          endDate: p.expiresAt,
+          doctor: p.doctor?.fullName || p.doctorName || 'Médecin',
+          status: p.status === 'ACTIVE' ? 'active' : p.status === 'EXPIRED' ? 'completed' : 'cancelled',
+          refillsRemaining: undefined,
+        })));
+      } else if (treatments.length > 0) {
+        setPrescriptions(treatments.map((t: any) => ({
+          id: t.id,
+          medication: t.medicationName || t.name || 'Traitement',
+          dosage: t.dosage || '',
+          frequency: t.frequency || '',
+          startDate: t.startDate || t.createdAt,
+          endDate: t.endDate,
+          doctor: t.prescribedBy?.fullName || 'Médecin',
+          status: t.status === 'ACTIVE' ? 'active' : t.status === 'COMPLETED' ? 'completed' : 'cancelled',
+          refillsRemaining: t.refillsRemaining,
+        })));
+      }
 
       // Map lab results
       const labs = data.labResults || [];
@@ -228,13 +252,10 @@ export default function HealthRecordsPage() {
   }, [apiBaseUrl]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/auth/login');
-      return;
-    }
+    if (authLoading) return;
+    if (!user) { router.replace('/auth/login'); return; }
     loadData();
-  }, [router, loadData]);
+  }, [authLoading, user, router, loadData]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -628,6 +649,13 @@ export default function HealthRecordsPage() {
               </h2>
             </div>
 
+            {prescriptions.length === 0 && (
+              <div className="text-center py-16 bg-slate-800 rounded-xl border border-slate-700">
+                <Pill className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 font-medium">Aucune ordonnance</p>
+                <p className="text-slate-500 text-sm mt-1">Vos ordonnances apparaîtront ici</p>
+              </div>
+            )}
             {prescriptions.map(prescription => (
               <div
                 key={prescription.id}
@@ -690,7 +718,14 @@ export default function HealthRecordsPage() {
               </span>
             </div>
 
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            {labResults.length === 0 && (
+              <div className="text-center py-16 bg-slate-800 rounded-xl border border-slate-700">
+                <FlaskConical className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 font-medium">Aucun résultat d'analyse</p>
+                <p className="text-slate-500 text-sm mt-1">Vos analyses apparaîtront ici</p>
+              </div>
+            )}
+            {labResults.length > 0 && <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-700/50">
@@ -729,7 +764,7 @@ export default function HealthRecordsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         )}
 
@@ -740,6 +775,13 @@ export default function HealthRecordsPage() {
               <h2 className="text-lg font-semibold text-white">Carnet de vaccination</h2>
             </div>
 
+            {vaccinations.length === 0 && (
+              <div className="text-center py-16 bg-slate-800 rounded-xl border border-slate-700">
+                <Syringe className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 font-medium">Aucune vaccination enregistrée</p>
+                <p className="text-slate-500 text-sm mt-1">Votre carnet de vaccination apparaîtra ici</p>
+              </div>
+            )}
             <div className="grid gap-4">
               {vaccinations.map(vaccination => (
                 <div
@@ -781,10 +823,17 @@ export default function HealthRecordsPage() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-white">Historique médical</h2>
 
+            {timeline.length === 0 && (
+              <div className="text-center py-16 bg-slate-800 rounded-xl border border-slate-700">
+                <Clock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 font-medium">Aucun événement médical</p>
+                <p className="text-slate-500 text-sm mt-1">Votre historique apparaîtra ici au fil des consultations</p>
+              </div>
+            )}
             <div className="relative">
               <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-slate-700" />
               <div className="space-y-6">
-                {timeline.map((event, idx) => (
+                {timeline.map((event) => (
                   <div key={event.id} className="relative flex gap-4 pl-12">
                     <div className={`absolute left-2 w-6 h-6 rounded-full border-2 border-slate-800 flex items-center justify-center ${
                       event.type === 'consultation' ? 'bg-teal-500' :
