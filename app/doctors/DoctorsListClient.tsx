@@ -57,7 +57,7 @@ export default function DoctorsPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Médecins</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Trouver un médecin</h1>
 
       {/* Search Form */}
       <form
@@ -69,22 +69,22 @@ export default function DoctorsPage() {
             name="q"
             placeholder="Nom / spécialité"
             defaultValue={q}
-            className="w-full px-4 py-3 pl-11 border border-gray-200 rounded-xl text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+            className="w-full px-4 py-3 pl-11 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10"
           />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
         </div>
         <div className="relative">
           <input
             name="city"
             placeholder="Ville"
             defaultValue={city}
-            className="w-full px-4 py-3 pl-11 border border-gray-200 rounded-xl text-sm outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+            className="w-full px-4 py-3 pl-11 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 outline-none transition-colors focus:border-teal-500 focus:ring-2 focus:ring-teal-500/10"
           />
-          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
         </div>
         <button
           type="submit"
-          className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="px-6 py-3 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-500 transition-colors"
         >
           Rechercher
         </button>
@@ -93,14 +93,15 @@ export default function DoctorsPage() {
       {/* Results */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+          <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {!doctors.length && (
-            <div className="col-span-full text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-              <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Aucun résultat pour cette recherche.</p>
+            <div className="col-span-full text-center py-16 bg-slate-800 rounded-2xl border-2 border-dashed border-slate-700">
+              <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-400 font-medium">Aucun résultat pour cette recherche.</p>
+              <p className="text-slate-500 text-sm mt-1">Essayez avec un autre nom ou une autre spécialité.</p>
             </div>
           )}
           {doctors.map((doctor) => (
