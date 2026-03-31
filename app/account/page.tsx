@@ -91,11 +91,15 @@ export default function AccountPage() {
   const [twoFactorBackupCodes, setTwoFactorBackupCodes] = useState<string[]>([]);
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
+  // Email verification status
+  const [emailVerified, setEmailVerified] = useState(false);
+
   // Notification preferences
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [smsNotifs, setSmsNotifs] = useState(false);
   const [reminderNotifs, setReminderNotifs] = useState(true);
   const [marketingNotifs, setMarketingNotifs] = useState(false);
+  const [notifSaved, setNotifSaved] = useState(false);
 
   // Field errors
   const [profileErrors, setProfileErrors] = useState<FormErrors<'fullName' | 'email' | 'phone' | 'birthdate'>>({});
@@ -228,9 +232,22 @@ export default function AccountPage() {
         setPhone(data.phone ?? '');
         setSex(data.sex ?? '');
         setCity(data.city ?? '');
+        setEmailVerified(data.emailVerified ?? false);
         if (data.birthdate) {
           setBirthdate(String(data.birthdate).substring(0, 10));
         }
+
+        // Restore notification preferences from localStorage
+        try {
+          const saved = localStorage.getItem('notif_prefs');
+          if (saved) {
+            const prefs = JSON.parse(saved);
+            setEmailNotifs(prefs.emailNotifs ?? true);
+            setSmsNotifs(prefs.smsNotifs ?? false);
+            setReminderNotifs(prefs.reminderNotifs ?? true);
+            setMarketingNotifs(prefs.marketingNotifs ?? false);
+          }
+        } catch { /* ignore */ }
       } catch (e: unknown) {
         setErr(e instanceof Error ? e.message : 'Impossible de charger le compte');
       } finally {
@@ -380,6 +397,14 @@ export default function AccountPage() {
   function handleLogout() {
     logout();
     router.push('/');
+  }
+
+  function handleSaveNotifPrefs() {
+    try {
+      localStorage.setItem('notif_prefs', JSON.stringify({ emailNotifs, smsNotifs, reminderNotifs, marketingNotifs }));
+    } catch { /* ignore */ }
+    setNotifSaved(true);
+    setTimeout(() => setNotifSaved(false), 3000);
   }
 
   const getInitials = (name?: string | null) => {
@@ -787,15 +812,19 @@ export default function AccountPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between py-3 border-b border-slate-700">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                          <Shield className="w-5 h-5 text-green-400" />
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${emailVerified ? 'bg-green-500/20' : 'bg-amber-500/20'}`}>
+                          <Shield className={`w-5 h-5 ${emailVerified ? 'text-green-400' : 'text-amber-400'}`} />
                         </div>
                         <div>
                           <div className="text-sm font-medium text-white">Email vérifié</div>
                           <div className="text-xs text-slate-400">{email}</div>
                         </div>
                       </div>
-                      <span className="text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">Actif</span>
+                      {emailVerified ? (
+                        <span className="text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">Vérifié</span>
+                      ) : (
+                        <span className="text-xs text-amber-400 bg-amber-500/20 px-2 py-1 rounded-full">Non vérifié</span>
+                      )}
                     </div>
                     <div className="py-3">
                       <div className="flex items-center justify-between">
@@ -1030,9 +1059,15 @@ export default function AccountPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex items-center justify-end gap-4">
+                  {notifSaved && (
+                    <span className="text-sm text-green-400 flex items-center gap-1.5">
+                      <Check className="w-4 h-4" /> Préférences enregistrées
+                    </span>
+                  )}
                   <button
                     type="button"
+                    onClick={handleSaveNotifPrefs}
                     className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors flex items-center gap-2"
                   >
                     <Check className="w-4 h-4" />

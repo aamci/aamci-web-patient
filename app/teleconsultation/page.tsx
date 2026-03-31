@@ -18,6 +18,10 @@ import {
   X,
   Volume2,
   VolumeX,
+  Send,
+  Calendar,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface CallState {
@@ -25,6 +29,23 @@ interface CallState {
   duration: number;
   doctorName: string;
   doctorSpecialty: string;
+  doctorAvatarUrl: string | null;
+}
+
+interface AppointmentInfo {
+  id: string;
+  slotStart: string | null;
+  slotEnd: string | null;
+  kindName: string | null;
+  isTelemedicine: boolean;
+  doctorUserId: string | null;
+}
+
+interface ChatMessage {
+  id: string;
+  sender: 'user' | 'doctor';
+  text: string;
+  time: string;
 }
 
 function getApiBase(): string {
@@ -32,6 +53,16 @@ function getApiBase(): string {
   b = b.trim().replace(/^['\"]|['\"]$/g, '').replace(/\/+$/, '');
   if (!b) return 'http://localhost:3000';
   try { new URL(b); return b; } catch { return 'http://localhost:3000'; }
+}
+
+function formatTime(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
 function TeleconsultationPageContent() {
@@ -42,11 +73,15 @@ function TeleconsultationPageContent() {
   const apiBase = useMemo(() => getApiBase(), []);
 
   const [loading, setLoading] = useState(true);
+  const [notTelemedicine, setNotTelemedicine] = useState(false);
+  const [apptInfo, setApptInfo] = useState<AppointmentInfo | null>(null);
+
   const [callState, setCallState] = useState<CallState>({
     status: 'idle',
     duration: 0,
     doctorName: 'Médecin',
     doctorSpecialty: '',
+    doctorAvatarUrl: null,
   });
 
   // Controls
@@ -68,15 +103,25 @@ function TeleconsultationPageContent() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Camera started flag — video element only renders when true
   const [cameraStarted, setCameraStarted] = useState(false);
 
-  // Assign srcObject AFTER <video> element mounts (conditional rendering fix)
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Assign srcObject after <video> element mounts
   useEffect(() => {
     if (cameraStarted && localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
   }, [cameraStarted]);
+
+  // Scroll chat to bottom on new messages
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -85,10 +130,6 @@ function TeleconsultationPageContent() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Chat
-  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
-  const [newChatMessage, setNewChatMessage] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -106,10 +147,33 @@ function TeleconsultationPageContent() {
           if (res.ok) {
             const appt = await res.json();
             const doctor = appt.doctor ?? appt.slot?.doctor;
+            const kind = appt.kind;
+
+            // Validate telemedicine flag
+            if (kind && kind.isTelemedicine === false) {
+              setNotTelemedicine(true);
+              setLoading(false);
+              return;
+            }
+
+            const slotStart = appt.slot?.startAt ?? appt.slotStart ?? null;
+            const slotEnd = appt.slot?.endAt ?? appt.slotEnd ?? null;
+            const doctorUserId = doctor?.id ?? null;
+
+            setApptInfo({
+              id: appointmentId,
+              slotStart,
+              slotEnd,
+              kindName: kind?.name ?? null,
+              isTelemedicine: kind?.isTelemedicine !== false,
+              doctorUserId,
+            });
+
             setCallState(prev => ({
               ...prev,
               doctorName: doctor?.fullName ? `Dr. ${doctor.fullName}` : 'Médecin',
-              doctorSpecialty: appt.kind?.name ?? doctor?.specialty ?? '',
+              doctorSpecialty: kind?.name ?? doctor?.doctorProfile?.specialty ?? doctor?.specialty ?? '',
+              doctorAvatarUrl: doctor?.avatarUrl ?? null,
             }));
           }
         } else if (doctorId) {
@@ -120,15 +184,17 @@ function TeleconsultationPageContent() {
               ...prev,
               doctorName: profile.user?.fullName ? `Dr. ${profile.user.fullName}` : 'Médecin',
               doctorSpecialty: profile.specialty ?? '',
+              doctorAvatarUrl: profile.user?.avatarUrl ?? null,
             }));
+            setApptInfo({
+              id: '',
+              slotStart: null,
+              slotEnd: null,
+              kindName: null,
+              isTelemedicine: true,
+              doctorUserId: profile.userId ?? profile.user?.id ?? doctorId,
+            });
           }
-        }
-
-        if (appointmentId) {
-          await fetch(`${apiBase}/appointments/${appointmentId}/start-video`, {
-            method: 'POST',
-            headers,
-          }).catch(() => null);
         }
       } catch {
         // Non-critical
@@ -211,18 +277,8 @@ function TeleconsultationPageContent() {
     }
     stopCamera();
     setCallState(prev => ({ ...prev, status: 'ended' }));
-
-    if (appointmentId) {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(`${apiBase}/appointments/${appointmentId}/end-video`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null);
-      }
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appointmentId, apiBase]);
+  }, []);
 
   const toggleMic = () => {
     if (!localStreamRef.current) return;
@@ -241,17 +297,14 @@ function TeleconsultationPageContent() {
   const toggleScreenShare = async () => {
     if (!localStreamRef.current) return;
     if (isScreenSharing) {
-      // Stop screen share, restore camera
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
       if (videoTrack) videoTrack.stop();
-
       try {
         const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
         const camTrack = camStream.getVideoTracks()[0];
         localStreamRef.current.removeTrack(localStreamRef.current.getVideoTracks()[0]);
         localStreamRef.current.addTrack(camTrack);
       } catch { /* ignore */ }
-
       setIsScreenSharing(false);
     } else {
       try {
@@ -268,7 +321,6 @@ function TeleconsultationPageContent() {
       } catch { /* user cancelled */ }
     }
 
-    // Force video element to refresh
     if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = null;
       localVideoRef.current.srcObject = localStreamRef.current;
@@ -285,15 +337,40 @@ function TeleconsultationPageContent() {
     }
   }, []);
 
-  const sendChatMessage = () => {
-    if (!newChatMessage.trim()) return;
-    setChatMessages(prev => [...prev, {
-      sender: 'user',
-      text: newChatMessage.trim(),
-      time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    }]);
+  const sendChatMessage = useCallback(async () => {
+    const text = newChatMessage.trim();
+    if (!text || sendingChat) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const timeStr = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+    // Optimistic update
+    setChatMessages(prev => [...prev, { id: tempId, sender: 'user', text, time: timeStr }]);
     setNewChatMessage('');
-  };
+
+    // Send via messages API if we know the doctor's userId
+    const doctorUserId = apptInfo?.doctorUserId;
+    if (doctorUserId) {
+      setSendingChat(true);
+      try {
+        await fetch(`${apiBase}/messages/send`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ recipientId: doctorUserId, content: text }),
+        });
+      } catch {
+        // Message still shown locally even if API fails
+      } finally {
+        setSendingChat(false);
+      }
+    }
+  }, [newChatMessage, sendingChat, apptInfo, apiBase]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -315,6 +392,24 @@ function TeleconsultationPageContent() {
         <div className="flex flex-col items-center gap-3">
           <RefreshCw className="w-8 h-8 text-teal-500 animate-spin" />
           <p className="text-slate-400">Préparation de la téléconsultation...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (notTelemedicine) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <AlertTriangle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-white mb-2">Ce rendez-vous n'est pas une téléconsultation</h2>
+          <p className="text-slate-400 mb-6">Ce type de rendez-vous se déroule en présentiel.</p>
+          <button
+            onClick={() => router.push('/appointments')}
+            className="px-6 py-3 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors"
+          >
+            Mes rendez-vous
+          </button>
         </div>
       </div>
     );
@@ -355,10 +450,39 @@ function TeleconsultationPageContent() {
 
             {/* IDLE */}
             {callState.status === 'idle' && (
-              <div className="text-center">
-                <Video className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-white mb-2">Prêt pour la consultation</h2>
-                <p className="text-slate-400 mb-2">Vérifiez votre caméra et microphone avant de commencer</p>
+              <div className="text-center max-w-sm mx-auto px-4">
+                {/* Doctor avatar */}
+                <div className="w-20 h-20 rounded-full bg-teal-700 flex items-center justify-center text-2xl font-bold text-white mx-auto mb-4 overflow-hidden">
+                  {callState.doctorAvatarUrl ? (
+                    <img src={callState.doctorAvatarUrl} alt={callState.doctorName} className="w-full h-full object-cover" />
+                  ) : (
+                    getInitials(callState.doctorName)
+                  )}
+                </div>
+
+                <h2 className="text-xl font-semibold text-white mb-1">{callState.doctorName}</h2>
+                {callState.doctorSpecialty && (
+                  <p className="text-teal-400 text-sm mb-4">{callState.doctorSpecialty}</p>
+                )}
+
+                {/* Appointment time info */}
+                {apptInfo?.slotStart && (
+                  <div className="flex flex-col gap-1.5 mb-6 bg-slate-800 rounded-xl p-3 text-sm">
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Calendar className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="capitalize">{formatDate(apptInfo.slotStart)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-300">
+                      <Clock className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span>
+                        {formatTime(apptInfo.slotStart)}
+                        {apptInfo.slotEnd ? ` – ${formatTime(apptInfo.slotEnd)}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-slate-400 text-sm mb-4">Vérifiez votre caméra et microphone avant de commencer</p>
                 {cameraError && (
                   <p className="text-red-400 text-sm mb-4">{cameraError}</p>
                 )}
@@ -384,8 +508,12 @@ function TeleconsultationPageContent() {
             {/* RINGING */}
             {callState.status === 'ringing' && (
               <div className="text-center">
-                <div className="w-24 h-24 rounded-full bg-teal-600 flex items-center justify-center text-2xl font-bold text-white mx-auto mb-4 animate-pulse">
-                  {getInitials(callState.doctorName)}
+                <div className="w-24 h-24 rounded-full bg-teal-600 flex items-center justify-center text-2xl font-bold text-white mx-auto mb-4 animate-pulse overflow-hidden">
+                  {callState.doctorAvatarUrl ? (
+                    <img src={callState.doctorAvatarUrl} alt={callState.doctorName} className="w-full h-full object-cover" />
+                  ) : (
+                    getInitials(callState.doctorName)
+                  )}
                 </div>
                 <h2 className="text-xl font-semibold text-white mb-2">Appel en cours...</h2>
                 <p className="text-slate-400">{callState.doctorName}</p>
@@ -403,8 +531,12 @@ function TeleconsultationPageContent() {
                 {/* Remote video placeholder (doctor side) */}
                 <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="w-32 h-32 rounded-full bg-teal-600 flex items-center justify-center text-4xl font-bold text-white mx-auto mb-4">
-                      {getInitials(callState.doctorName)}
+                    <div className="w-32 h-32 rounded-full bg-teal-600 flex items-center justify-center text-4xl font-bold text-white mx-auto mb-4 overflow-hidden">
+                      {callState.doctorAvatarUrl ? (
+                        <img src={callState.doctorAvatarUrl} alt={callState.doctorName} className="w-full h-full object-cover" />
+                      ) : (
+                        getInitials(callState.doctorName)
+                      )}
                     </div>
                     <p className="text-white font-medium">{callState.doctorName}</p>
                     <p className="text-slate-400 text-sm">{callState.doctorSpecialty}</p>
@@ -463,12 +595,14 @@ function TeleconsultationPageContent() {
                   >
                     Mes rendez-vous
                   </button>
-                  <button
-                    onClick={() => router.push(`/reviews?pending=${appointmentId}`)}
-                    className="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors"
-                  >
-                    Évaluer la consultation
-                  </button>
+                  {appointmentId && (
+                    <button
+                      onClick={() => router.push(`/reviews?pending=${appointmentId}`)}
+                      className="px-5 py-2.5 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-500 transition-colors"
+                    >
+                      Évaluer la consultation
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -545,19 +679,22 @@ function TeleconsultationPageContent() {
           )}
         </div>
 
-        {/* Chat Panel */}
+        {/* Chat Panel — connected to messages API */}
         {showChat && callState.status === 'connected' && (
           <div className="w-80 border-l border-slate-700 flex flex-col bg-slate-800">
             <div className="p-4 border-b border-slate-700">
               <h3 className="font-medium text-white">Chat</h3>
+              {!apptInfo?.doctorUserId && (
+                <p className="text-xs text-slate-500 mt-0.5">Messages enregistrés localement</p>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {chatMessages.length === 0 && (
                 <p className="text-slate-500 text-sm text-center mt-4">Aucun message</p>
               )}
-              {chatMessages.map((msg, idx) => (
-                <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : ''}`}>
+              {chatMessages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : ''}`}>
                   <div
                     className={`max-w-[80%] px-3 py-2 rounded-lg ${
                       msg.sender === 'user' ? 'bg-teal-600 text-white' : 'bg-slate-700 text-white'
@@ -568,6 +705,7 @@ function TeleconsultationPageContent() {
                   </div>
                 </div>
               ))}
+              <div ref={chatBottomRef} />
             </div>
 
             <div className="p-4 border-t border-slate-700">
@@ -582,10 +720,10 @@ function TeleconsultationPageContent() {
                 />
                 <button
                   onClick={sendChatMessage}
-                  disabled={!newChatMessage.trim()}
+                  disabled={!newChatMessage.trim() || sendingChat}
                   className="p-2 bg-teal-600 text-white rounded-lg hover:bg-teal-500 disabled:opacity-50 transition-colors"
                 >
-                  <Check className="w-5 h-5" />
+                  <Send className="w-5 h-5" />
                 </button>
               </div>
             </div>

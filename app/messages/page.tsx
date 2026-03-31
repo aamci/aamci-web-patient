@@ -7,21 +7,18 @@ import {
   MessageSquare,
   Search,
   Send,
-  ArrowLeft,
   Phone,
   Video,
-  MoreVertical,
   Check,
   CheckCheck,
-  Image,
   Paperclip,
-  Smile,
-  Clock,
-  User,
+  Image,
   RefreshCw,
   X,
   ChevronLeft,
   Loader2,
+  Plus,
+  Stethoscope,
 } from 'lucide-react';
 
 interface Message {
@@ -48,6 +45,13 @@ interface Conversation {
   messages: Message[];
 }
 
+interface DoctorSuggestion {
+  id: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  doctorProfile?: { specialty: string | null } | null;
+}
+
 function MessagesPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,8 +67,16 @@ function MessagesPageContent() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showMobileList, setShowMobileList] = useState(true);
 
+  // New conversation modal
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [doctorSearch, setDoctorSearch] = useState('');
+  const [doctorResults, setDoctorResults] = useState<DoctorSuggestion[]>([]);
+  const [searchingDoctors, setSearchingDoctors] = useState(false);
+  const [startingConvo, setStartingConvo] = useState<string | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const doctorSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentUserId = user?.id || '';
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
@@ -135,7 +147,6 @@ function MessagesPageContent() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Load messages for this conversation
       const res = await fetch(`${apiBaseUrl}/messages/conversations/${convo.id}`, { headers });
       if (res.ok) {
         const data = await res.json();
@@ -155,7 +166,6 @@ function MessagesPageContent() {
         ));
       }
 
-      // Mark as read
       await fetch(`${apiBaseUrl}/messages/conversations/${convo.id}/read`, {
         method: 'POST',
         headers,
@@ -195,7 +205,7 @@ function MessagesPageContent() {
         const message: Message = {
           id: sent.id,
           senderId: currentUserId,
-          content,  // Use original plaintext, not the API response (avoids encryption display bug)
+          content,
           timestamp: sent.createdAt,
           read: false,
           type: 'text',
@@ -203,12 +213,7 @@ function MessagesPageContent() {
 
         setConversations(prev => prev.map(c =>
           c.id === selectedConversation.id
-            ? {
-                ...c,
-                messages: [...c.messages, message],
-                lastMessage: content,
-                lastMessageTime: message.timestamp,
-              }
+            ? { ...c, messages: [...c.messages, message], lastMessage: content, lastMessageTime: message.timestamp }
             : c
         ));
 
@@ -216,6 +221,189 @@ function MessagesPageContent() {
           ...prev,
           messages: [...prev.messages, message],
         } : null);
+      } else {
+        setNewMessage(content);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setNewMessage(content);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Recherche de médecins pour nouvelle conversation
+  const searchDoctors = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      // Charger les médecins avec qui le patient a déjà eu des RDV
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${apiBaseUrl}/appointments`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const appts = await res.json();
+          const list = Array.isArray(appts) ? appts : appts?.data ?? [];
+          const seen = new Set<string>();
+          const docs: DoctorSuggestion[] = [];
+          for (const a of list) {
+            if (a.doctor?.id && !seen.has(a.doctor.id)) {
+              seen.add(a.doctor.id);
+              docs.push({
+                id: a.doctor.id,
+                fullName: a.doctor.fullName || null,
+                avatarUrl: a.doctor.avatarUrl || null,
+                doctorProfile: a.doctor.doctorProfile || null,
+              });
+            }
+          }
+          setDoctorResults(docs.slice(0, 8));
+        }
+      } catch { /* ignore */ }
+      return;
+    }
+
+    setSearchingDoctors(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `${apiBaseUrl}/search/doctors?q=${encodeURIComponent(q)}&limit=8`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.data ?? [];
+        setDoctorResults(list.map((d: any) => ({
+          id: d.id,
+          fullName: d.fullName || null,
+          avatarUrl: d.avatarUrl || null,
+          doctorProfile: d.doctorProfile || null,
+        })));
+      }
+    } catch { /* ignore */ }
+    finally { setSearchingDoctors(false); }
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (!showNewModal) return;
+    if (doctorSearchRef.current) clearTimeout(doctorSearchRef.current);
+    doctorSearchRef.current = setTimeout(() => searchDoctors(doctorSearch), 300);
+    return () => { if (doctorSearchRef.current) clearTimeout(doctorSearchRef.current); };
+  }, [doctorSearch, showNewModal, searchDoctors]);
+
+  const openNewModal = () => {
+    setShowNewModal(true);
+    setDoctorSearch('');
+    setDoctorResults([]);
+    // Charger les médecins par défaut (RDV passés)
+    searchDoctors('');
+  };
+
+  const startConversation = async (doctor: DoctorSuggestion) => {
+    // Vérifier si une conversation existe déjà
+    const existing = conversations.find(c => c.doctorId === doctor.id);
+    if (existing) {
+      setShowNewModal(false);
+      selectConversation(existing);
+      return;
+    }
+
+    setStartingConvo(doctor.id);
+    try {
+      const token = localStorage.getItem('token');
+      // Envoyer un message vide pour créer la conversation (l'API crée la conversation au premier message)
+      // On crée une conversation "fantôme" côté frontend et on attend le premier message
+      const newConvo: Conversation = {
+        id: `new-${doctor.id}`,
+        doctorId: doctor.id,
+        doctorName: doctor.fullName || 'Médecin',
+        doctorSpecialty: doctor.doctorProfile?.specialty || '',
+        doctorAvatar: doctor.avatarUrl || undefined,
+        unreadCount: 0,
+        isOnline: false,
+        messages: [],
+      };
+      setConversations(prev => [newConvo, ...prev]);
+      setShowNewModal(false);
+      setSelectedConversation(newConvo);
+      setShowMobileList(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
+    } finally {
+      setStartingConvo(null);
+    }
+  };
+
+  // Surcharge sendMessage pour les conversations nouvelles (id commence par "new-")
+  const sendMessageOverride = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+
+    setSending(true);
+    const content = newMessage.trim();
+    setNewMessage('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/messages/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipientId: selectedConversation.doctorId, content }),
+      });
+
+      if (res.ok) {
+        const sent = await res.json();
+        const isNew = selectedConversation.id.startsWith('new-');
+
+        if (isNew) {
+          // Récupérer les vraies conversations pour avoir le vrai ID
+          const convRes = await fetch(`${apiBaseUrl}/messages/conversations`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (convRes.ok) {
+            const data = await convRes.json();
+            const mapped: Conversation[] = data.map((conv: any) => ({
+              id: conv.id,
+              doctorId: conv.otherParticipant?.id || '',
+              doctorName: conv.otherParticipant?.fullName || 'Médecin',
+              doctorSpecialty: conv.otherParticipant?.doctorProfile?.specialty || '',
+              doctorAvatar: conv.otherParticipant?.avatarUrl,
+              lastMessage: conv.lastMessage,
+              lastMessageTime: conv.lastMessageTime,
+              unreadCount: conv.unreadCount || 0,
+              isOnline: false,
+              messages: [],
+            }));
+            setConversations(mapped);
+            const realConvo = mapped.find(c => c.doctorId === selectedConversation.doctorId);
+            if (realConvo) {
+              const msg: Message = {
+                id: sent.id,
+                senderId: currentUserId,
+                content,
+                timestamp: sent.createdAt,
+                read: false,
+                type: 'text',
+              };
+              const withMsg = { ...realConvo, messages: [msg] };
+              setSelectedConversation(withMsg);
+              router.replace(`/messages?conversation=${realConvo.id}`, { scroll: false });
+            }
+          }
+        } else {
+          const message: Message = {
+            id: sent.id,
+            senderId: currentUserId,
+            content,
+            timestamp: sent.createdAt,
+            read: false,
+            type: 'text',
+          };
+          setConversations(prev => prev.map(c =>
+            c.id === selectedConversation.id
+              ? { ...c, messages: [...c.messages, message], lastMessage: content, lastMessageTime: message.timestamp }
+              : c
+          ));
+          setSelectedConversation(prev => prev ? { ...prev, messages: [...prev.messages, message] } : null);
+        }
       } else {
         setNewMessage(content);
       }
@@ -272,6 +460,85 @@ function MessagesPageContent() {
 
   return (
     <div className="min-h-screen bg-slate-900">
+      {/* Modal nouvelle conversation */}
+      {showNewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-700">
+              <h2 className="text-lg font-semibold text-white">Nouvelle conversation</h2>
+              <button
+                onClick={() => setShowNewModal(false)}
+                className="p-2 rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un médecin..."
+                  value={doctorSearch}
+                  onChange={e => setDoctorSearch(e.target.value)}
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
+                />
+              </div>
+
+              {!doctorSearch && doctorResults.length > 0 && (
+                <p className="text-xs text-slate-500 mb-2 px-1">Médecins consultés récemment</p>
+              )}
+
+              <div className="space-y-1 max-h-72 overflow-y-auto">
+                {searchingDoctors ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-5 h-5 text-teal-500 animate-spin" />
+                  </div>
+                ) : doctorResults.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Stethoscope className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-slate-500 text-sm">
+                      {doctorSearch ? 'Aucun médecin trouvé' : 'Aucun médecin récent'}
+                    </p>
+                  </div>
+                ) : (
+                  doctorResults.map(doctor => (
+                    <button
+                      key={doctor.id}
+                      onClick={() => startConversation(doctor)}
+                      disabled={startingConvo === doctor.id}
+                      className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-slate-700 transition-colors text-left disabled:opacity-50"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                        {doctor.fullName ? getInitials(doctor.fullName) : 'Dr'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-white truncate">
+                          {doctor.fullName || 'Médecin'}
+                        </div>
+                        {doctor.doctorProfile?.specialty && (
+                          <div className="text-xs text-slate-400 truncate">
+                            {doctor.doctorProfile.specialty}
+                          </div>
+                        )}
+                      </div>
+                      {conversations.some(c => c.doctorId === doctor.id) && (
+                        <span className="text-xs text-teal-400 shrink-0">Existante</span>
+                      )}
+                      {startingConvo === doctor.id && (
+                        <Loader2 className="w-4 h-4 text-teal-500 animate-spin shrink-0" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-6xl mx-auto h-[calc(100vh-64px)]">
         <div className="flex h-full">
           {/* Conversations List */}
@@ -290,6 +557,13 @@ function MessagesPageContent() {
                     </span>
                   )}
                 </h1>
+                <button
+                  onClick={openNewModal}
+                  className="p-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white transition-colors"
+                  title="Nouvelle conversation"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -308,7 +582,15 @@ function MessagesPageContent() {
               {filteredConversations.length === 0 ? (
                 <div className="p-8 text-center">
                   <MessageSquare className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">Aucune conversation</p>
+                  <p className="text-slate-400 font-medium">Aucune conversation</p>
+                  <p className="text-slate-500 text-sm mt-1">Écrivez à un médecin pour commencer</p>
+                  <button
+                    onClick={openNewModal}
+                    className="mt-4 flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-sm rounded-xl mx-auto transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nouvelle conversation
+                  </button>
                 </div>
               ) : (
                 filteredConversations.map(convo => (
@@ -379,7 +661,7 @@ function MessagesPageContent() {
                   <div className="flex-1">
                     <h2 className="font-medium text-white">{selectedConversation.doctorName}</h2>
                     <p className="text-xs text-slate-400">
-                      {selectedConversation.isOnline ? 'En ligne' : 'Hors ligne'}
+                      {selectedConversation.doctorSpecialty || (selectedConversation.isOnline ? 'En ligne' : 'Hors ligne')}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -472,12 +754,12 @@ function MessagesPageContent() {
                       placeholder="Écrivez votre message..."
                       value={newMessage}
                       onChange={e => setNewMessage(e.target.value.slice(0, 2000))}
-                      onKeyPress={e => e.key === 'Enter' && sendMessage()}
+                      onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendMessageOverride()}
                       maxLength={2000}
                       className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-full text-white placeholder-slate-500 text-sm focus:outline-none focus:border-teal-500"
                     />
                     <button
-                      onClick={sendMessage}
+                      onClick={sendMessageOverride}
                       disabled={!newMessage.trim() || sending}
                       className="p-2 rounded-full bg-teal-600 text-white hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
@@ -492,9 +774,16 @@ function MessagesPageContent() {
                 <div className="text-center">
                   <MessageSquare className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                   <h2 className="text-xl font-semibold text-white mb-2">Vos messages</h2>
-                  <p className="text-slate-400 max-w-sm">
-                    Sélectionnez une conversation pour commencer à discuter avec votre médecin
+                  <p className="text-slate-400 max-w-sm mb-6">
+                    Sélectionnez une conversation ou écrivez à un médecin
                   </p>
+                  <button
+                    onClick={openNewModal}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-sm font-medium mx-auto transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nouvelle conversation
+                  </button>
                 </div>
               </div>
             )}
