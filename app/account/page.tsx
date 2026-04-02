@@ -28,6 +28,9 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Sun,
+  Moon,
+  Monitor,
   Send,
   Plus,
 } from 'lucide-react';
@@ -61,6 +64,26 @@ export default function AccountPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [loading, setLoading] = useState(true);
+
+  // Theme
+  const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
+  useEffect(() => {
+    const saved = (localStorage.getItem('patient-theme') as 'dark' | 'light' | 'system') || 'dark';
+    setTheme(saved);
+  }, []);
+  const handleThemeChange = (t: 'dark' | 'light' | 'system') => {
+    setTheme(t);
+    localStorage.setItem('patient-theme', t);
+    const root = document.documentElement;
+    if (t === 'dark') {
+      root.classList.add('dark'); root.classList.remove('light');
+    } else if (t === 'light') {
+      root.classList.remove('dark'); root.classList.add('light');
+    } else {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.toggle('dark', prefersDark); root.classList.toggle('light', !prefersDark);
+    }
+  };
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -693,6 +716,36 @@ export default function AccountPage() {
                         />
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Appearance */}
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Apparence</h2>
+                  <p className="text-sm text-slate-400 mb-5">Choisissez votre thème d&apos;affichage.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {([
+                      { value: 'dark', label: 'Sombre', Icon: Moon },
+                      { value: 'light', label: 'Clair', Icon: Sun },
+                      { value: 'system', label: 'Système', Icon: Monitor },
+                    ] as const).map(({ value, label, Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => handleThemeChange(value)}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                          theme === value
+                            ? 'border-teal-500 bg-teal-600/10 text-teal-400'
+                            : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                        }`}
+                      >
+                        <Icon className="w-6 h-6" />
+                        <span className="text-xs font-medium">{label}</span>
+                        {theme === value && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

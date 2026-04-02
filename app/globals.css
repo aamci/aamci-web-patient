@@ -189,6 +189,67 @@
   }
 }
 
+/* ── Light mode overrides ──────────────────────────────────────────────────
+   web-patient defaults to dark (slate-900 base). When .light is applied to
+   <html>, these rules flip hardcoded slate-* classes to light equivalents.
+   ──────────────────────────────────────────────────────────────────────── */
+
+html.light body {
+  background-color: hsl(210 40% 98%) !important; /* slate-50 */
+  color: hsl(222.2 47.4% 11.2%) !important;
+}
+
+/* Surfaces */
+html.light .bg-slate-950 { background-color: hsl(210 40% 96%) !important; }
+html.light .bg-slate-900 { background-color: hsl(210 40% 98%) !important; }
+html.light .bg-slate-800 { background-color: hsl(0 0% 100%) !important; }
+html.light .bg-slate-700 { background-color: hsl(210 40% 95%) !important; }
+html.light .bg-slate-600 { background-color: hsl(210 40% 88%) !important; }
+html.light .bg-slate-500 { background-color: hsl(210 40% 80%) !important; }
+
+/* Text */
+html.light .text-white    { color: hsl(222.2 47.4% 11.2%) !important; }
+html.light .text-slate-50 { color: hsl(222.2 47.4% 11.2%) !important; }
+html.light .text-slate-100 { color: hsl(222.2 47.4% 15%) !important; }
+html.light .text-slate-200 { color: hsl(222.2 47.4% 20%) !important; }
+html.light .text-slate-300 { color: hsl(222.2 47.4% 30%) !important; }
+html.light .text-slate-400 { color: hsl(215 16% 47%) !important; }
+html.light .text-slate-500 { color: hsl(215 14% 34%) !important; }
+html.light .text-slate-600 { color: hsl(215 19% 27%) !important; }
+
+/* Borders */
+html.light .border-slate-900 { border-color: hsl(214 32% 91%) !important; }
+html.light .border-slate-800 { border-color: hsl(214 32% 91%) !important; }
+html.light .border-slate-700 { border-color: hsl(214 32% 88%) !important; }
+html.light .border-slate-600 { border-color: hsl(214 32% 82%) !important; }
+
+/* Inputs */
+html.light input[class*="bg-slate"],
+html.light textarea[class*="bg-slate"] {
+  background-color: hsl(0 0% 100%) !important;
+  color: hsl(222.2 47.4% 11.2%) !important;
+  border-color: hsl(214 32% 88%) !important;
+}
+
+/* Scrollbar */
+html.light ::-webkit-scrollbar-track { background: hsl(210 40% 95%); }
+html.light ::-webkit-scrollbar-thumb { background: hsl(210 40% 80%); }
+html.light ::-webkit-scrollbar-thumb:hover { background: hsl(210 40% 70%); }
+
+/* Navbar / sticky surfaces */
+html.light .bg-slate-900\/95,
+html.light [class*="bg-slate-900/"] {
+  background-color: hsl(0 0% 100% / 0.95) !important;
+}
+html.light [class*="bg-slate-800/"] {
+  background-color: hsl(210 40% 98% / 0.9) !important;
+}
+
+/* Shadows — lighten in light mode */
+html.light .shadow-2xl { box-shadow: 0 25px 50px -12px hsl(0 0% 0% / 0.1) !important; }
+html.light .shadow-xl  { box-shadow: 0 20px 25px -5px hsl(0 0% 0% / 0.08) !important; }
+html.light .shadow-lg  { box-shadow: 0 10px 15px -3px hsl(0 0% 0% / 0.07) !important; }
+
 @layer utilities {
   /* Focus ring utilities */
   .focus-ring {

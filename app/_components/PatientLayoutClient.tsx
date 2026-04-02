@@ -16,5 +16,5 @@ export default function PatientLayoutClient({ children }: { children: React.Reac
     );
   }
 
-  return <main className="min-h-screen">{children}</main>;
+  return <main className="min-h-screen bg-slate-900">{children}</main>;
 }
