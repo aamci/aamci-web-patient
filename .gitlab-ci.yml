@@ -7,7 +7,7 @@
 #   DEPLOY_HOST                      — IP du serveur
 #   DEPLOY_USER                      — ex : ubuntu
 #   DEPLOY_DIR                       — /opt/apps/doctor-patient
-#   NEXT_PUBLIC_API_BASE_URL_PROD    — http://api.141.253.108.57.nip.io
+#   NEXT_PUBLIC_API_BASE_URL_PROD    — http://api.141.253.108.57.nip.
 #   NEXT_PUBLIC_API_BASE_URL_PREPROD — http://preprod-api.141.253.108.57.nip.io
 #   WEB_PATIENT_PROD_URL             — http://patient.141.253.108.57.nip.io
 #   WEB_PATIENT_PREPROD_URL          — http://preprod-patient.141.253.108.57.nip.io
