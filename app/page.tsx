@@ -109,7 +109,7 @@ export default function HomePage() {
             <Link href="/auth/login" className="text-sm text-gray-700 hover:text-teal-600 font-medium transition-colors">
               Connexion
             </Link>
-            <Link href="/auth/register" className="px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors">
+            <Link href="/auth/login" className="px-4 py-2 bg-teal-500 text-white rounded-xl text-sm font-semibold hover:bg-teal-600 transition-colors">
               S'inscrire
             </Link>
           </div>
@@ -417,7 +417,7 @@ export default function HomePage() {
             Inscription gratuite. Aucune carte bancaire requise.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/auth/register" className="px-8 py-4 bg-white text-teal-600 rounded-xl font-semibold hover:bg-teal-50 transition-colors flex items-center justify-center gap-2">
+            <Link href="/auth/login" className="px-8 py-4 bg-white text-teal-600 rounded-xl font-semibold hover:bg-teal-50 transition-colors flex items-center justify-center gap-2">
               Créer un compte gratuit
               <ArrowRight className="w-5 h-5" />
             </Link>
