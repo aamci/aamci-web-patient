@@ -33,6 +33,9 @@ import {
   Monitor,
   Send,
   Plus,
+  Download,
+  Trash2,
+  Database,
 } from 'lucide-react';
 
 function getApiBase(): string | null {
@@ -47,7 +50,7 @@ function getApiBase(): string | null {
   }
 }
 
-type TabId = 'profile' | 'security' | 'notifications' | 'billing' | 'support';
+type TabId = 'profile' | 'security' | 'notifications' | 'billing' | 'support' | 'data';
 
 const tabs: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profil', icon: User },
@@ -55,6 +58,7 @@ const tabs: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'billing', label: 'Facturation', icon: CreditCard },
   { id: 'support', label: 'Support', icon: MessageSquare },
+  { id: 'data', label: 'Mes données', icon: Database },
 ];
 
 export default function AccountPage() {
@@ -143,6 +147,47 @@ export default function AccountPage() {
   const [ticketPriority, setTicketPriority] = useState('MEDIUM');
   const [ticketSaving, setTicketSaving] = useState(false);
   const [ticketErr, setTicketErr] = useState('');
+
+  // Data & privacy tab
+  const [dataLoading, setDataLoading] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  async function handleExportData() {
+    setDataLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const base = apiBase ?? '/api-proxy';
+      const r = await fetch(`${base}/me/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error('Export échoué');
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mes-donnees-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Export impossible');
+    } finally {
+      setDataLoading(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (deleteConfirm !== 'SUPPRIMER') return;
+    setDeleteLoading(true);
+    try {
+      await authedFetch('/me', { method: 'DELETE' });
+      logout();
+      router.replace('/auth/login');
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Suppression impossible');
+      setDeleteLoading(false);
+    }
+  }
 
   // Invoices (billing tab)
   type Invoice = {
@@ -1329,6 +1374,91 @@ export default function AccountPage() {
                       })}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+            {/* Data & Privacy Tab */}
+            {activeTab === 'data' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Mes données personnelles</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Conformément à la Loi 025/2023 sur la protection des données personnelles (Gabon),
+                    vous disposez d&apos;un droit d&apos;accès, de rectification et d&apos;effacement de vos données.
+                  </p>
+
+                  {/* Export */}
+                  <div className="border border-slate-600 rounded-xl p-5 mb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center shrink-0">
+                        <Download className="w-5 h-5 text-teal-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-white mb-1">Exporter mes données</h3>
+                        <p className="text-sm text-slate-400 mb-4">
+                          Téléchargez une copie de toutes vos données personnelles (profil, rendez-vous,
+                          dossiers médicaux, factures) au format JSON.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleExportData}
+                          disabled={dataLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {dataLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                          {dataLoading ? 'Préparation...' : 'Télécharger mes données'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delete */}
+                  <div className="border border-red-500/30 rounded-xl p-5 bg-red-500/5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
+                        <Trash2 className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-medium text-red-400 mb-1">Supprimer mon compte</h3>
+                        <p className="text-sm text-slate-400 mb-4">
+                          Cette action est irréversible. Vos données personnelles seront anonymisées
+                          (nom, email, téléphone). Les données médicales sont conservées à des fins légales.
+                        </p>
+                        <p className="text-xs text-slate-500 mb-3">
+                          Tapez <span className="font-mono text-red-400 font-bold">SUPPRIMER</span> pour confirmer :
+                        </p>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={deleteConfirm}
+                            onChange={e => setDeleteConfirm(e.target.value)}
+                            placeholder="SUPPRIMER"
+                            className="flex-1 max-w-[200px] bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleDeleteAccount}
+                            disabled={deleteConfirm !== 'SUPPRIMER' || deleteLoading}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            Supprimer mon compte
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Legal links */}
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <p className="text-xs text-slate-500">
+                      Pour toute question relative à vos données,{' '}
+                      <a href="/politique-confidentialite" className="text-teal-400 hover:underline">
+                        consultez notre politique de confidentialité
+                      </a>.
+                      Autorité de contrôle : APDPVP (Gabon).
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

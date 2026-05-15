@@ -211,8 +211,13 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="text-slate-500 text-sm">
-          © 2026 Plateforme Santé. Tous droits réservés.
+        <div className="text-slate-500 text-xs text-center space-y-1">
+          <div>© 2026 Ibogha Health. Tous droits réservés.</div>
+          <div className="flex items-center justify-center gap-3">
+            <a href="/conditions-utilisation" className="hover:text-teal-400 transition-colors">CGU</a>
+            <span>·</span>
+            <a href="/politique-confidentialite" className="hover:text-teal-400 transition-colors">Confidentialité</a>
+          </div>
         </div>
       </div>
 
@@ -431,6 +436,14 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+            {mode === 'register' && (
+              <p className="text-center text-xs text-slate-500 mt-2">
+                En créant un compte, vous acceptez nos{' '}
+                <a href="/conditions-utilisation" target="_blank" className="text-teal-400 hover:underline">conditions d&apos;utilisation</a>
+                {' '}et notre{' '}
+                <a href="/politique-confidentialite" target="_blank" className="text-teal-400 hover:underline">politique de confidentialité</a>.
+              </p>
+            )}
 
             {/* Divider */}
             <div className="flex items-center my-6 gap-4">

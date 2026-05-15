@@ -475,7 +475,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               <div className="flex flex-wrap gap-6 mt-4">
                 {prof?.consultationPrice && (
                   <div className="text-center">
-                    <div className="text-xl font-bold text-white">{prof.consultationPrice} €</div>
+                    <div className="text-xl font-bold text-white">{prof.consultationPrice} FCFA</div>
                     <div className="text-xs text-slate-500">Consultation</div>
                   </div>
                 )}
@@ -878,7 +878,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-base font-bold text-teal-400">{getBookingPrice()} €</div>
+                        <div className="text-base font-bold text-teal-400">{getBookingPrice()} FCFA</div>
                         <div className="text-xs text-slate-500">Consultation</div>
                       </div>
                     </div>
@@ -979,7 +979,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {kind.price && (
-                                  <div className="text-sm font-bold text-white">{kind.price} €</div>
+                                  <div className="text-sm font-bold text-white">{kind.price} FCFA</div>
                                 )}
                                 <div className={`w-4 h-4 rounded-full border-2 ${
                                   selectedKind === kind.id ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
@@ -1182,7 +1182,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         </div>
                         <div className="p-4 flex items-center justify-between">
                           <div className="text-sm text-slate-400">Total à payer</div>
-                          <div className="text-xl font-bold text-teal-400">{getBookingPrice()} €</div>
+                          <div className="text-xl font-bold text-teal-400">{getBookingPrice()} FCFA</div>
                         </div>
                       </div>
 
@@ -1266,7 +1266,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       Réservation...
                     </>
                   ) : bookingStep === 'confirm' ? (
-                    `Payer ${getBookingPrice()} €`
+                    `Payer ${getBookingPrice()} FCFA`
                   ) : (
                     'Continuer'
                   )}
