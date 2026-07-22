@@ -1,25 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../_providers/AuthProvider';
 import { CheckCircle, Loader2 } from 'lucide-react';
 
 export default function OAuthSuccessPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
 
   useEffect(() => {
-    // Refetch user to get the current session
-    login();
+    const token = searchParams.get('token');
+    if (token) {
+      localStorage.setItem('token', token);
+    }
 
-    // Redirect to home after a brief delay
-    const timer = setTimeout(() => {
-      router.push('/dashboard');
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [router, login]);
+    login().then(() => {
+      router.push('/');
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6">

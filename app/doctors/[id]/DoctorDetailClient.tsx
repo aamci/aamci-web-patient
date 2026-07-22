@@ -111,12 +111,16 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [bookingStep, setBookingStep] = useState<'pour_qui' | 'type' | 'details' | 'payment' | 'confirm'>('pour_qui');
+  const [bookingStep, setBookingStep] = useState<'pour_qui' | 'lieu' | 'type' | 'details' | 'payment' | 'confirm'>('pour_qui');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile' | 'onsite'>('card');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [bookingFor, setBookingFor] = useState<'me' | 'other'>('me');
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
+
+  // Établissements du médecin
+  const [facilities, setFacilities] = useState<Array<{ id: string; name: string; type: string; city: string | null; address: string | null }>>([]);
+  const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
 
   // Load doctor, slots, appointment kinds
   useEffect(() => {
@@ -169,6 +173,16 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
         if (kindsList.length > 0) {
           setSelectedKind(kindsList[0].id);
         }
+
+        // Fetch doctor's facilities (public endpoint)
+        try {
+          const facilUrl = apiBase ? `${apiBase}/doctor-profiles/${doctorId}/facilities` : `/doctor-profiles/${doctorId}/facilities`;
+          const facilRes = await fetch(facilUrl, { cache: 'no-store' });
+          const facilData = await facilRes.json().catch(() => []);
+          const facilList = Array.isArray(facilData) ? facilData : [];
+          setFacilities(facilList);
+          if (facilList.length === 1) setSelectedFacilityId(facilList[0].id);
+        } catch { /* facilities optionnel */ }
 
         // Check favorite status
         if (user) {
@@ -292,6 +306,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           kindId: selectedKind || undefined,
           notes: bookingNotes || `RDV avec ${doctor?.fullName || 'le médecin'}`,
           doctorId: doctorId,
+          facilityId: selectedFacilityId || undefined,
           beneficiaryName: bookingFor === 'other' ? beneficiaryName || undefined : undefined,
           beneficiaryPhone: bookingFor === 'other' ? beneficiaryPhone || undefined : undefined,
         }),
@@ -328,6 +343,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     setBookingFor('me');
     setBeneficiaryName('');
     setBeneficiaryPhone('');
+    if (facilities.length !== 1) setSelectedFacilityId(null);
   }
 
   function getSelectedKindDetails() {
@@ -808,6 +824,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 <h3 className="text-base font-semibold text-white">
                   {bookingSuccess ? 'Confirmation' :
                    bookingStep === 'pour_qui' ? 'Pour qui ?' :
+                   bookingStep === 'lieu' ? 'Choisir le lieu' :
                    bookingStep === 'type' ? 'Type de consultation' :
                    bookingStep === 'details' ? 'Détails du rendez-vous' :
                    bookingStep === 'payment' ? 'Paiement' : 'Récapitulatif'}
@@ -823,8 +840,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               {/* Progress steps */}
               {!bookingSuccess && (
                 <div className="flex items-center gap-1">
-                  {['pour_qui', 'type', 'details', 'payment', 'confirm'].map((step, idx) => {
-                    const STEPS = ['pour_qui', 'type', 'details', 'payment', 'confirm'];
+                  {(() => {
+                    const STEPS = facilities.length > 1
+                      ? ['pour_qui', 'lieu', 'type', 'details', 'payment', 'confirm']
+                      : ['pour_qui', 'type', 'details', 'payment', 'confirm'];
+                    const currentIdx = STEPS.indexOf(bookingStep);
+                    return STEPS;
+                  })().map((step, idx, STEPS) => {
                     const currentIdx = STEPS.indexOf(bookingStep);
                     return (
                       <div key={step} className="flex items-center flex-1">
@@ -835,7 +857,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         }`}>
                           {idx + 1}
                         </div>
-                        {idx < 4 && (
+                        {idx < STEPS.length - 1 && (
                           <div className={`flex-1 h-0.5 mx-0.5 rounded ${
                             currentIdx > idx ? 'bg-teal-600/50' : 'bg-slate-700'
                           }`} />
@@ -885,6 +907,38 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   </div>
 
                   {/* Step 0: Pour qui */}
+                  {/* Étape Lieu — uniquement si le médecin a plusieurs structures */}
+                  {bookingStep === 'lieu' && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-400 mb-1">Dans quel établissement souhaitez-vous consulter ?</p>
+                      {facilities.map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => setSelectedFacilityId(f.id)}
+                          className={`w-full p-4 rounded-xl border-2 transition-all text-left flex items-start gap-3 ${
+                            selectedFacilityId === f.id
+                              ? 'border-teal-500 bg-teal-600/10'
+                              : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-teal-600/20 flex items-center justify-center shrink-0 mt-0.5">
+                            <MapPin className="w-4 h-4 text-teal-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-white">{f.name}</div>
+                            {(f.address || f.city) && (
+                              <div className="text-xs text-slate-400 mt-0.5">{[f.address, f.city].filter(Boolean).join(', ')}</div>
+                            )}
+                            <div className="text-xs text-teal-400/70 mt-0.5">{f.type}</div>
+                          </div>
+                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-1 ${
+                            selectedFacilityId === f.id ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
+                          }`} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {bookingStep === 'pour_qui' && (
                     <div className="space-y-2">
                       <p className="text-xs text-slate-400 mb-2">Pour qui prenez-vous rendez-vous ?</p>
@@ -1163,6 +1217,16 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                             {beneficiaryPhone && <div className="text-slate-400 text-sm">{beneficiaryPhone}</div>}
                           </div>
                         )}
+                        {selectedFacilityId && (() => {
+                          const f = facilities.find(x => x.id === selectedFacilityId);
+                          return f ? (
+                            <div className="p-4">
+                              <div className="text-sm text-slate-400">Lieu de consultation</div>
+                              <div className="text-white font-medium">{f.name}</div>
+                              {(f.address || f.city) && <div className="text-slate-400 text-xs mt-0.5">{[f.address, f.city].filter(Boolean).join(', ')}</div>}
+                            </div>
+                          ) : null;
+                        })()}
                         <div className="p-4">
                           <div className="text-sm text-slate-400">Type de consultation</div>
                           <div className="text-white">{getSelectedKindDetails()?.label || 'Consultation standard'}</div>
@@ -1219,8 +1283,10 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   onClick={() => {
                     if (bookingStep === 'pour_qui') {
                       closeModal();
-                    } else if (bookingStep === 'type') {
+                    } else if (bookingStep === 'lieu') {
                       setBookingStep('pour_qui');
+                    } else if (bookingStep === 'type') {
+                      setBookingStep(facilities.length > 1 ? 'lieu' : 'pour_qui');
                     } else if (bookingStep === 'details') {
                       setBookingStep('type');
                     } else if (bookingStep === 'payment') {
@@ -1239,6 +1305,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                     if (bookingStep === 'pour_qui') {
                       if (bookingFor === 'other' && !beneficiaryName.trim()) {
                         setBookingError('Veuillez renseigner le nom du bénéficiaire');
+                        return;
+                      }
+                      setBookingError(null);
+                      setBookingStep(facilities.length > 1 ? 'lieu' : 'type');
+                    } else if (bookingStep === 'lieu') {
+                      if (!selectedFacilityId) {
+                        setBookingError('Veuillez choisir un établissement');
                         return;
                       }
                       setBookingError(null);

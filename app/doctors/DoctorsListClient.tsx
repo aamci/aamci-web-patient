@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, MapPin, Loader2 } from 'lucide-react';
+import { Search, MapPin, Loader2, Calendar, Video } from 'lucide-react';
 import { DoctorCard, type Doctor } from '@/components/cards';
 
 function getApiBase(): string | null {
@@ -20,6 +20,8 @@ export default function DoctorsPage() {
   const router = useRouter();
   const q = searchParams.get('q') ?? '';
   const city = searchParams.get('city') ?? '';
+  const availableIn = searchParams.get('availableIn') ?? '';
+  const video = searchParams.get('video') ?? '';
   const apiBase = useMemo(() => getApiBase(), []);
 
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -28,9 +30,15 @@ export default function DoctorsPage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (city) params.set('city', city);
+      if (availableIn) params.set('availableIn', availableIn);
+      if (video) params.set('video', video);
+      const qs = params.toString();
       const url = apiBase
-        ? `${apiBase}/search/doctors?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}`
-        : `/search/doctors?q=${encodeURIComponent(q)}&city=${encodeURIComponent(city)}`;
+        ? `${apiBase}/search/doctors${qs ? `?${qs}` : ''}`
+        : `/search/doctors${qs ? `?${qs}` : ''}`;
       try {
         const res = await fetch(url, { cache: 'no-store' });
         const data = await res.json();
@@ -42,7 +50,7 @@ export default function DoctorsPage() {
       }
     }
     load();
-  }, [apiBase, q, city]);
+  }, [apiBase, q, city, availableIn, video]);
 
   function onSubmit(formData: FormData) {
     const nxtQ = formData.get('q')?.toString() ?? '';
@@ -50,9 +58,23 @@ export default function DoctorsPage() {
     const params = new URLSearchParams();
     if (nxtQ) params.set('q', nxtQ);
     if (nxtCity) params.set('city', nxtCity);
+    if (availableIn) params.set('availableIn', availableIn);
+    if (video) params.set('video', video);
+    router.push(`/doctors${params.toString() ? `?${params.toString()}` : ''}` as any);
+  }
 
-    const href = `/doctors${params.toString() ? `?${params.toString()}` : ''}`;
-    router.push(href as any);
+  function toggleFilter(key: string, value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.get(key) === value) {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+      // availability filters are mutually exclusive
+      if (key === 'availableIn') {
+        params.set('availableIn', value);
+      }
+    }
+    router.push(`/doctors${params.toString() ? `?${params.toString()}` : ''}` as any);
   }
 
   return (
@@ -90,6 +112,56 @@ export default function DoctorsPage() {
         </button>
       </form>
 
+      {/* Filtres rapides */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        <button
+          onClick={() => toggleFilter('availableIn', '3')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+            availableIn === '3'
+              ? 'bg-teal-600 border-teal-600 text-white'
+              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-teal-500 hover:text-white'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          Dispo dans 3 jours
+        </button>
+        <button
+          onClick={() => toggleFilter('availableIn', '7')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+            availableIn === '7'
+              ? 'bg-teal-600 border-teal-600 text-white'
+              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-teal-500 hover:text-white'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          Dispo dans 7 jours
+        </button>
+        <button
+          onClick={() => toggleFilter('video', 'true')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+            video === 'true'
+              ? 'bg-violet-600 border-violet-600 text-white'
+              : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-violet-500 hover:text-white'
+          }`}
+        >
+          <Video className="w-3.5 h-3.5" />
+          Consultation vidéo
+        </button>
+        {(availableIn || video) && (
+          <button
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.delete('availableIn');
+              params.delete('video');
+              router.push(`/doctors${params.toString() ? `?${params.toString()}` : ''}` as any);
+            }}
+            className="px-4 py-2 rounded-full text-sm text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            Effacer les filtres
+          </button>
+        )}
+      </div>
+
       {/* Results */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
@@ -100,8 +172,12 @@ export default function DoctorsPage() {
           {!doctors.length && (
             <div className="col-span-full text-center py-16 bg-slate-800 rounded-2xl border-2 border-dashed border-slate-700">
               <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-400 font-medium">Aucun résultat pour cette recherche.</p>
-              <p className="text-slate-500 text-sm mt-1">Essayez avec un autre nom ou une autre spécialité.</p>
+              <p className="text-slate-400 font-medium">Aucun médecin trouvé.</p>
+              <p className="text-slate-500 text-sm mt-1">
+                {availableIn || video
+                  ? 'Essayez d\'élargir les filtres ou de choisir une autre période.'
+                  : 'Essayez avec un autre nom ou une autre spécialité.'}
+              </p>
             </div>
           )}
           {doctors.map((doctor) => (
