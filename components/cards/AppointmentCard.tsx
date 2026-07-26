@@ -13,6 +13,7 @@ import {
   AlertCircle,
   MapPin,
   Video,
+  UserCheck,
 } from 'lucide-react';
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
@@ -23,6 +24,7 @@ export interface Appointment {
   createdAt: string;
   notes?: string | null;
   type?: string | null;
+  checkedInAt?: string | null;
   slot?: {
     start?: string;
     end?: string;
@@ -47,7 +49,9 @@ export interface Appointment {
 export interface AppointmentCardProps {
   appointment: Appointment;
   onCancel?: () => void;
+  onCheckIn?: () => void;
   isLoading?: boolean;
+  checkInLoading?: boolean;
   showAddToCalendar?: boolean;
   showDoctorLink?: boolean;
   variant?: 'default' | 'compact';
@@ -90,7 +94,9 @@ const STATUS_CONFIG: Record<
 export default function AppointmentCard({
   appointment,
   onCancel,
+  onCheckIn,
   isLoading = false,
+  checkInLoading = false,
   showAddToCalendar = true,
   showDoctorLink = true,
   variant = 'default',
@@ -99,6 +105,12 @@ export default function AppointmentCard({
   const now = new Date();
   const isUpcoming = start ? start > now : false;
   const isPast = start ? start <= now : false;
+  const hoursUntil = start ? (start.getTime() - now.getTime()) / 3600000 : Infinity;
+  const canCheckIn = onCheckIn
+    && appointment.status === 'CONFIRMED'
+    && !appointment.checkedInAt
+    && hoursUntil <= 4
+    && hoursUntil > -1;
 
   const doctorName =
     appointment.doctor?.fullName ||
@@ -250,6 +262,24 @@ export default function AppointmentCard({
                       Annuler
                     </>
                   )}
+                </button>
+              )}
+
+              {appointment.checkedInAt && (
+                <span className="px-3 py-2 bg-emerald-500/10 text-emerald-400 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 border border-emerald-500/30">
+                  <UserCheck className="w-4 h-4" />
+                  Présence confirmée
+                </span>
+              )}
+
+              {canCheckIn && (
+                <button
+                  onClick={onCheckIn}
+                  disabled={checkInLoading}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-emerald-500 transition-colors disabled:opacity-60"
+                >
+                  {checkInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                  Je suis arrivé(e)
                 </button>
               )}
 

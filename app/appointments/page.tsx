@@ -40,6 +40,7 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [checkInId, setCheckInId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -101,6 +102,21 @@ export default function AppointmentsPage() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function checkIn(apptId: string) {
+    setCheckInId(apptId);
+    try {
+      await callApi(`/appointments/${apptId}/check-in`, { method: 'POST' });
+      setItems((prev) =>
+        prev.map((a) => (a.id === apptId ? { ...a, checkedInAt: new Date().toISOString() } : a)),
+      );
+    } catch (e: unknown) {
+      const error = e as Error;
+      setErr(error?.message || 'Échec du check-in');
+    } finally {
+      setCheckInId(null);
     }
   }
 
@@ -283,7 +299,9 @@ export default function AppointmentsPage() {
               key={a.id}
               appointment={a}
               onCancel={() => cancel(a.id)}
+              onCheckIn={() => checkIn(a.id)}
               isLoading={actionId === a.id}
+              checkInLoading={checkInId === a.id}
             />
           ))}
         </div>

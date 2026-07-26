@@ -25,6 +25,7 @@ import {
   User,
   FileText,
   MessageSquare,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '@/app/_providers/AuthProvider';
 
@@ -121,6 +122,11 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   // Établissements du médecin
   const [facilities, setFacilities] = useState<Array<{ id: string; name: string; type: string; city: string | null; address: string | null }>>([]);
   const [selectedFacilityId, setSelectedFacilityId] = useState<string | null>(null);
+  const [waitlistJoined, setWaitlistJoined] = useState(false);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'>('WEEKLY');
+  const [recurrenceCount, setRecurrenceCount] = useState(4);
 
   // Load doctor, slots, appointment kinds
   useEffect(() => {
@@ -244,6 +250,23 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   }, [slots]);
 
   // Toggle favorite
+  async function joinWaitlist() {
+    if (!user) { router.push('/auth/login'); return; }
+    setWaitlistLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
+      const res = await fetch(`${apiBase}/waitlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ doctorId, date: dateStr }),
+      });
+      if (res.ok || res.status === 400) setWaitlistJoined(true);
+    } catch { /* silent */ } finally { setWaitlistLoading(false); }
+  }
+
   async function toggleFavorite() {
     if (!user) {
       router.push('/auth/login');
@@ -309,6 +332,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           facilityId: selectedFacilityId || undefined,
           beneficiaryName: bookingFor === 'other' ? beneficiaryName || undefined : undefined,
           beneficiaryPhone: bookingFor === 'other' ? beneficiaryPhone || undefined : undefined,
+          ...(recurrenceEnabled ? { recurrence: { frequency: recurrenceFrequency, count: recurrenceCount } } : {}),
         }),
       });
 
@@ -343,6 +367,9 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     setBookingFor('me');
     setBeneficiaryName('');
     setBeneficiaryPhone('');
+    setRecurrenceEnabled(false);
+    setRecurrenceCount(4);
+    setRecurrenceFrequency('WEEKLY');
     if (facilities.length !== 1) setSelectedFacilityId(null);
   }
 
@@ -628,12 +655,29 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         <td colSpan={8} className="px-4 py-12 text-center text-slate-400">
                           <Calendar className="w-12 h-12 mx-auto mb-3 text-slate-600" />
                           <p>Aucun créneau disponible cette semaine</p>
-                          <button
-                            onClick={() => setWeekOffset((w) => w + 1)}
-                            className="mt-3 text-teal-400 hover:text-teal-300"
-                          >
-                            Voir la semaine suivante
-                          </button>
+                          <div className="flex flex-col items-center gap-2 mt-3">
+                            <button
+                              onClick={() => setWeekOffset((w) => w + 1)}
+                              className="text-teal-400 hover:text-teal-300"
+                            >
+                              Voir la semaine suivante
+                            </button>
+                            {!waitlistJoined ? (
+                              <button
+                                onClick={joinWaitlist}
+                                disabled={waitlistLoading}
+                                className="flex items-center gap-2 px-4 py-2 bg-violet-600/20 text-violet-400 border border-violet-500/30 rounded-lg hover:bg-violet-600/30 transition-colors text-sm"
+                              >
+                                <Bell className="w-4 h-4" />
+                                {waitlistLoading ? 'En cours…' : 'M\'alerter si un créneau se libère'}
+                              </button>
+                            ) : (
+                              <span className="flex items-center gap-2 text-violet-400 text-sm">
+                                <Bell className="w-4 h-4" />
+                                Vous serez notifié(e) si un créneau se libère
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ) : (
@@ -1248,6 +1292,47 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                           <div className="text-sm text-slate-400">Total à payer</div>
                           <div className="text-xl font-bold text-teal-400">{getBookingPrice()} FCFA</div>
                         </div>
+                      </div>
+
+                      {/* Récurrence */}
+                      <div className="bg-slate-700/30 rounded-xl p-4 space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={recurrenceEnabled}
+                            onChange={(e) => setRecurrenceEnabled(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-teal-600 focus:ring-teal-500"
+                          />
+                          <span className="text-sm text-white font-medium">Rendre ce RDV récurrent</span>
+                        </label>
+                        {recurrenceEnabled && (
+                          <div className="pl-7 grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs text-slate-400 block mb-1">Fréquence</label>
+                              <select
+                                value={recurrenceFrequency}
+                                onChange={(e) => setRecurrenceFrequency(e.target.value as any)}
+                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none"
+                              >
+                                <option value="WEEKLY">Hebdomadaire</option>
+                                <option value="BIWEEKLY">Toutes les 2 semaines</option>
+                                <option value="MONTHLY">Mensuel</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-400 block mb-1">Nombre de séances</label>
+                              <select
+                                value={recurrenceCount}
+                                onChange={(e) => setRecurrenceCount(Number(e.target.value))}
+                                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none"
+                              >
+                                {[2,3,4,6,8,10,12].map(n => (
+                                  <option key={n} value={n}>{n} séances</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Terms */}
