@@ -97,18 +97,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center shadow-md group-hover:bg-teal-500 transition-colors">
-              <span className="text-xl font-bold text-white">M</span>
-            </div>
-            <div className="hidden sm:flex flex-col">
-              <span className="font-semibold text-white">Plateforme Santé</span>
-              {user && (
-                <span className="text-xs text-teal-400 font-medium">
-                  Espace patient
-                </span>
-              )}
-            </div>
+          <Link href="/" className="flex items-center gap-2 group">
+            <img
+              src="/logo.jpeg"
+              alt="Ibogha 241"
+              className="h-10 w-auto rounded-lg object-contain bg-white p-0.5 shadow-md"
+            />
           </Link>
 
           {/* Navigation desktop */}

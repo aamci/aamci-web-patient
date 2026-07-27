@@ -172,10 +172,11 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-slate-800 p-12 flex-col justify-between">
         <div>
           <Link href="/" className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-teal-600 rounded-xl flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">M</span>
-            </div>
-            <span className="text-white text-xl font-bold">Plateforme Santé</span>
+            <img
+              src="/logo.jpeg"
+              alt="Ibogha 241"
+              className="h-14 w-auto rounded-xl object-contain bg-white p-1 shadow-lg"
+            />
           </Link>
         </div>
 
@@ -225,11 +226,12 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-[420px]">
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center">
-              <span className="text-xl font-bold text-white">M</span>
-            </div>
-            <span className="text-white text-lg font-bold">Plateforme Santé</span>
+          <div className="lg:hidden flex items-center justify-center mb-8">
+            <img
+              src="/logo.jpeg"
+              alt="Ibogha 241"
+              className="h-14 w-auto rounded-xl object-contain bg-white p-1 shadow-lg"
+            />
           </div>
 
           {/* Header */}
