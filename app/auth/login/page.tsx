@@ -19,6 +19,7 @@ import {
   Heart,
   Shield,
 } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -172,11 +173,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-slate-800 p-12 flex-col justify-between">
         <div>
           <Link href="/" className="flex items-center gap-3">
-            <img
-              src="/logo.jpeg"
-              alt="Ibogha 241"
-              className="h-14 w-auto rounded-xl object-contain bg-white p-1 shadow-lg"
-            />
+            <Logo className="h-14 w-auto" />
           </Link>
         </div>
 
@@ -227,11 +224,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px]">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center justify-center mb-8">
-            <img
-              src="/logo.jpeg"
-              alt="Ibogha 241"
-              className="h-14 w-auto rounded-xl object-contain bg-white p-1 shadow-lg"
-            />
+            <Logo className="h-14 w-auto" />
           </div>
 
           {/* Header */}

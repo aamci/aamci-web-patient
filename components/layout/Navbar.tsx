@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
+import { Logo } from '@/components/Logo';
 import { useAuth } from '@/app/_providers/AuthProvider';
 import {
   Menu,
@@ -98,11 +99,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <img
-              src="/logo.jpeg"
-              alt="Ibogha 241"
-              className="h-10 w-auto rounded-lg object-contain bg-white p-0.5 shadow-md"
-            />
+            <Logo className="h-10 w-auto" />
           </Link>
 
           {/* Navigation desktop */}
