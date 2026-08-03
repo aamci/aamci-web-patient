@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/app/_providers/AuthProvider';
@@ -14,8 +14,44 @@ import {
   CalendarX,
   Clock,
   Stethoscope,
+  Star,
+  Download,
+  CheckCircle,
 } from 'lucide-react';
 import { AppointmentCard, type Appointment } from '@/components/cards';
+
+function downloadIcs(appt: Appointment) {
+  const start = appt.slot?.start;
+  const end = appt.slot?.end || appt.slot?.start;
+  if (!start) return;
+
+  const fmt = (d: string) => new Date(d).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const doctorName = appt.doctor?.fullName || appt.doctor?.name || 'Médecin';
+  const kindName = appt.kind?.name || 'Consultation';
+  const uid = `${appt.id}@ibogha241.ga`;
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Ibogha 241//FR',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTART:${fmt(start)}`,
+    `DTEND:${fmt(end!)}`,
+    `SUMMARY:RDV ${kindName} - Dr. ${doctorName}`,
+    `DESCRIPTION:${appt.notes || `Consultation avec ${doctorName}`}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rdv-${appt.id.slice(-6)}.ics`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function getApiBase(): string {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -43,6 +79,47 @@ export default function AppointmentsPage() {
   const [checkInId, setCheckInId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Post-RDV rating
+  const [ratingAppt, setRatingAppt] = useState<Appointment | null>(null);
+  const [overallRating, setOverallRating] = useState(0);
+  const [punctualityRating, setPunctualityRating] = useState(0);
+  const [communicationRating, setCommunicationRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSending, setReviewSending] = useState(false);
+  const [reviewDone, setReviewDone] = useState<string | null>(null); // appt id reviewed
+  const [reviewErr, setReviewErr] = useState('');
+
+  const openRating = useCallback((appt: Appointment) => {
+    setRatingAppt(appt);
+    setOverallRating(0); setPunctualityRating(0); setCommunicationRating(0);
+    setReviewComment(''); setReviewErr('');
+  }, []);
+
+  async function submitReview() {
+    if (!ratingAppt || overallRating === 0) { setReviewErr('Veuillez sélectionner une note globale.'); return; }
+    const doctorId = ratingAppt.slot?.ownerId || ratingAppt.doctor?.id;
+    if (!doctorId) { setReviewErr('Médecin introuvable.'); return; }
+    setReviewSending(true); setReviewErr('');
+    try {
+      await callApi('/reviews', {
+        method: 'POST',
+        body: JSON.stringify({
+          doctorId,
+          appointmentId: ratingAppt.id,
+          overallRating,
+          ...(punctualityRating > 0 ? { punctualityRating } : {}),
+          ...(communicationRating > 0 ? { communicationRating } : {}),
+          comment: reviewComment || undefined,
+          isPublic: true,
+        }),
+      });
+      setReviewDone(ratingAppt.id);
+      setRatingAppt(null);
+    } catch (e: unknown) {
+      setReviewErr((e as Error).message || 'Erreur lors de l\'envoi de l\'avis');
+    } finally { setReviewSending(false); }
+  }
 
   async function callApi(path: string, init?: RequestInit) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -294,16 +371,106 @@ export default function AppointmentsPage() {
         <EmptyState filter={filter} searchQuery={searchQuery} />
       ) : (
         <div className="grid gap-4">
-          {filteredItems.map((a) => (
-            <AppointmentCard
-              key={a.id}
-              appointment={a}
-              onCancel={() => cancel(a.id)}
-              onCheckIn={() => checkIn(a.id)}
-              isLoading={actionId === a.id}
-              checkInLoading={checkInId === a.id}
-            />
-          ))}
+          {filteredItems.map((a) => {
+            const now = new Date();
+            const slotStart = a.slot?.start ? new Date(a.slot.start) : null;
+            const isPast = slotStart && slotStart <= now;
+            const isUpcoming = slotStart && slotStart > now;
+            const isConfirmed = a.status === 'CONFIRMED';
+            const alreadyReviewed = reviewDone === a.id;
+            return (
+              <div key={a.id}>
+                <AppointmentCard
+                  appointment={a}
+                  onCancel={() => cancel(a.id)}
+                  onCheckIn={() => checkIn(a.id)}
+                  isLoading={actionId === a.id}
+                  checkInLoading={checkInId === a.id}
+                />
+                <div className="flex gap-2 mt-1.5 pl-1">
+                  {/* iCal export — upcoming only */}
+                  {isUpcoming && a.status !== 'CANCELLED' && (
+                    <button
+                      onClick={() => downloadIcs(a)}
+                      className="flex items-center gap-1.5 px-3 py-1 text-xs text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-700/50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Ajouter au calendrier
+                    </button>
+                  )}
+                  {/* Rating — past confirmed, not yet reviewed */}
+                  {isPast && isConfirmed && !alreadyReviewed && (
+                    <button
+                      onClick={() => openRating(a)}
+                      className="flex items-center gap-1.5 px-3 py-1 text-xs text-amber-400 hover:text-amber-300 transition-colors rounded-lg hover:bg-amber-500/10"
+                    >
+                      <Star className="w-3.5 h-3.5" />
+                      Laisser un avis
+                    </button>
+                  )}
+                  {alreadyReviewed && (
+                    <span className="flex items-center gap-1.5 px-3 py-1 text-xs text-green-400">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Avis envoyé
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {/* Rating modal */}
+      {ratingAppt && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setRatingAppt(null)}>
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-white">Votre avis</h3>
+              <button onClick={() => setRatingAppt(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-slate-400 mb-5">
+              RDV avec {ratingAppt.doctor?.fullName || ratingAppt.doctor?.name || 'le médecin'} · {ratingAppt.kind?.name || 'Consultation'}
+            </p>
+
+            {[
+              { label: 'Note globale *', value: overallRating, set: setOverallRating },
+              { label: 'Ponctualité', value: punctualityRating, set: setPunctualityRating },
+              { label: 'Communication', value: communicationRating, set: setCommunicationRating },
+            ].map(({ label, value, set }) => (
+              <div key={label} className="mb-4">
+                <p className="text-xs font-medium text-slate-400 mb-2">{label}</p>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} onClick={() => set(n)} className="group">
+                      <Star className={`w-7 h-7 transition-colors ${n <= value ? 'text-amber-400 fill-amber-400' : 'text-slate-600 group-hover:text-amber-400/50'}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div className="mb-4">
+              <p className="text-xs font-medium text-slate-400 mb-2">Commentaire (optionnel)</p>
+              <textarea
+                value={reviewComment}
+                onChange={e => setReviewComment(e.target.value)}
+                rows={3}
+                placeholder="Partagez votre expérience..."
+                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+              />
+            </div>
+
+            {reviewErr && <p className="text-red-400 text-xs mb-3">{reviewErr}</p>}
+
+            <button
+              onClick={submitReview}
+              disabled={reviewSending || overallRating === 0}
+              className="w-full py-2.5 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-400 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            >
+              {reviewSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+              {reviewSending ? 'Envoi...' : 'Publier l\'avis'}
+            </button>
+          </div>
         </div>
       )}
     </div>

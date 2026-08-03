@@ -36,6 +36,9 @@ import {
   Download,
   Trash2,
   Database,
+  Users,
+  Pencil,
+  X,
 } from 'lucide-react';
 
 function getApiBase(): string | null {
@@ -50,13 +53,17 @@ function getApiBase(): string | null {
   }
 }
 
-type TabId = 'profile' | 'security' | 'notifications' | 'billing' | 'support' | 'data';
+type TabId = 'profile' | 'security' | 'notifications' | 'billing' | 'assurance' | 'proches' | 'urgence' | 'support' | 'data' | 'waitlist';
 
 const tabs: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profil', icon: User },
   { id: 'security', label: 'Sécurité', icon: Shield },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'billing', label: 'Facturation', icon: CreditCard },
+  { id: 'assurance', label: 'Assurance', icon: Heart },
+  { id: 'proches', label: 'Mes proches', icon: Users },
+  { id: 'urgence', label: 'Urgences', icon: AlertTriangle },
+  { id: 'waitlist', label: "Liste d'attente", icon: Clock },
   { id: 'support', label: 'Support', icon: MessageSquare },
   { id: 'data', label: 'Mes données', icon: Database },
 ];
@@ -152,6 +159,160 @@ export default function AccountPage() {
   const [dataLoading, setDataLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Waitlist (liste d'attente)
+  type WaitlistEntry = {
+    id: string;
+    date: string;
+    status: string;
+    position: number;
+    doctor: { id: string; fullName?: string | null; email: string; avatarUrl?: string | null };
+  };
+  const [waitlistEntries, setWaitlistEntries] = useState<WaitlistEntry[]>([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
+  const [waitlistRemoving, setWaitlistRemoving] = useState<string | null>(null);
+
+  async function loadWaitlist() {
+    setWaitlistLoading(true);
+    try {
+      const r = await authedFetch('/waitlist/mine');
+      const d = await r.json();
+      setWaitlistEntries(Array.isArray(d) ? d : []);
+    } catch { /* silent */ } finally { setWaitlistLoading(false); }
+  }
+
+  // Assurance / mutuelle
+  const [insuranceLoading, setInsuranceLoading] = useState(false);
+  const [insuranceSaving, setInsuranceSaving] = useState(false);
+  const [insuranceProvider, setInsuranceProvider] = useState('');
+  const [insuranceNumber, setInsuranceNumber] = useState('');
+  const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
+  const [mutualInsurance, setMutualInsurance] = useState('');
+  const [socialSecurityNumber, setSocialSecurityNumber] = useState('');
+
+  async function loadInsurance() {
+    setInsuranceLoading(true);
+    try {
+      const r = await authedFetch('/me/insurance');
+      const d = await r.json();
+      setInsuranceProvider(d.insuranceProvider ?? '');
+      setInsuranceNumber(d.insuranceNumber ?? '');
+      setInsuranceExpiryDate(d.insuranceExpiryDate ?? '');
+      setMutualInsurance(d.mutualInsurance ?? '');
+      setSocialSecurityNumber(d.socialSecurityNumber ?? '');
+    } catch { /* silent */ } finally { setInsuranceLoading(false); }
+  }
+
+  async function handleSaveInsurance(e: React.FormEvent) {
+    e.preventDefault();
+    setInsuranceSaving(true);
+    try {
+      await authedFetch('/me/insurance', {
+        method: 'PATCH',
+        body: JSON.stringify({ insuranceProvider, insuranceNumber, insuranceExpiryDate, mutualInsurance, socialSecurityNumber }),
+      });
+      setSuccess('Informations d\'assurance enregistrées.');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch { setErr('Erreur lors de la sauvegarde'); setTimeout(() => setErr(null), 3000); }
+    finally { setInsuranceSaving(false); }
+  }
+
+  // Contacts d'urgence
+  type EmergencyContact = {
+    id: string; fullName: string; relationship: string;
+    phone: string; phoneSecondary?: string | null; email?: string | null;
+  };
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
+  const [urgenceLoading, setUrgenceLoading] = useState(false);
+  const [urgenceForm, setUrgenceForm] = useState<Partial<EmergencyContact> | null>(null);
+  const [urgenceSaving, setUrgenceSaving] = useState(false);
+  const [urgenceDeleting, setUrgenceDeleting] = useState<string | null>(null);
+
+  async function loadEmergencyContacts() {
+    if (!user?.id) return;
+    setUrgenceLoading(true);
+    try {
+      const r = await authedFetch(`/patient-record/${user.id}/emergency-contacts`);
+      const d = await r.json();
+      setEmergencyContacts(Array.isArray(d) ? d : []);
+    } catch { /* silent */ } finally { setUrgenceLoading(false); }
+  }
+
+  async function saveEmergencyContact() {
+    if (!urgenceForm?.fullName || !urgenceForm?.phone || !urgenceForm?.relationship || !user?.id) return;
+    setUrgenceSaving(true);
+    try {
+      const isNew = !urgenceForm.id;
+      const r = await authedFetch(
+        isNew ? `/patient-record/${user.id}/emergency-contacts` : `/patient-record/emergency-contacts/${urgenceForm.id}`,
+        { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(urgenceForm) }
+      );
+      const saved = await r.json();
+      if (isNew) setEmergencyContacts(p => [...p, saved]);
+      else setEmergencyContacts(p => p.map(c => c.id === saved.id ? saved : c));
+      setUrgenceForm(null);
+    } catch { /* silent */ } finally { setUrgenceSaving(false); }
+  }
+
+  async function deleteEmergencyContact(id: string) {
+    setUrgenceDeleting(id);
+    try {
+      await authedFetch(`/patient-record/emergency-contacts/${id}`, { method: 'DELETE' });
+      setEmergencyContacts(p => p.filter(c => c.id !== id));
+    } catch { /* silent */ } finally { setUrgenceDeleting(null); }
+  }
+
+  // Proches (beneficiaries)
+  type Beneficiary = {
+    id: string; firstName: string; lastName: string;
+    relationship: string; birthDate?: string | null; phone?: string | null;
+  };
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
+  const [prochesLoading, setProchesLoading] = useState(false);
+  const [prochesForm, setProchesForm] = useState<Partial<Beneficiary> | null>(null);
+  const [prochesSaving, setProchesSaving] = useState(false);
+  const [prochesDeleting, setProchesDeleting] = useState<string | null>(null);
+
+  async function loadProches() {
+    setProchesLoading(true);
+    try {
+      const r = await authedFetch('/beneficiaries');
+      const d = await r.json();
+      setBeneficiaries(Array.isArray(d) ? d : []);
+    } catch { /* silent */ } finally { setProchesLoading(false); }
+  }
+
+  async function saveProche() {
+    if (!prochesForm?.firstName || !prochesForm?.lastName || !prochesForm?.relationship) return;
+    setProchesSaving(true);
+    try {
+      const isNew = !prochesForm.id;
+      const r = await authedFetch(
+        isNew ? '/beneficiaries' : `/beneficiaries/${prochesForm.id}`,
+        { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(prochesForm) }
+      );
+      const saved = await r.json();
+      if (isNew) setBeneficiaries(p => [...p, saved]);
+      else setBeneficiaries(p => p.map(b => b.id === saved.id ? saved : b));
+      setProchesForm(null);
+    } catch { /* silent */ } finally { setProchesSaving(false); }
+  }
+
+  async function deleteProche(id: string) {
+    setProchesDeleting(id);
+    try {
+      await authedFetch(`/beneficiaries/${id}`, { method: 'DELETE' });
+      setBeneficiaries(p => p.filter(b => b.id !== id));
+    } catch { /* silent */ } finally { setProchesDeleting(null); }
+  }
+
+  async function removeFromWaitlist(entryId: string) {
+    setWaitlistRemoving(entryId);
+    try {
+      await authedFetch(`/waitlist/${entryId}`, { method: 'DELETE' });
+      setWaitlistEntries(prev => prev.filter(e => e.id !== entryId));
+    } catch { /* silent */ } finally { setWaitlistRemoving(null); }
+  }
 
   async function handleExportData() {
     setDataLoading(true);
@@ -408,6 +569,10 @@ export default function AccountPage() {
   useEffect(() => {
     if (activeTab === 'support') loadTickets();
     if (activeTab === 'billing') loadInvoices();
+    if (activeTab === 'waitlist') loadWaitlist();
+    if (activeTab === 'proches') loadProches();
+    if (activeTab === 'assurance') loadInsurance();
+    if (activeTab === 'urgence') loadEmergencyContacts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -1236,6 +1401,121 @@ export default function AccountPage() {
               </div>
             )}
 
+            {/* Assurance Tab */}
+            {activeTab === 'assurance' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Couverture santé</h2>
+                  <p className="text-sm text-slate-400 mb-6">Renseignez votre assurance maladie et mutuelle pour faciliter vos prises en charge.</p>
+
+                  {insuranceLoading ? (
+                    <div className="flex justify-center py-10">
+                      <Loader2 className="w-6 h-6 text-teal-500 animate-spin" />
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSaveInsurance} className="space-y-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Assurance maladie</label>
+                          <input
+                            type="text"
+                            value={insuranceProvider}
+                            onChange={(e) => setInsuranceProvider(e.target.value)}
+                            placeholder="ex: CNAMGS, AXA Santé..."
+                            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Numéro d'adhérent</label>
+                          <input
+                            type="text"
+                            value={insuranceNumber}
+                            onChange={(e) => setInsuranceNumber(e.target.value)}
+                            placeholder="Numéro d'adhérent"
+                            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Date d'expiration</label>
+                          <input
+                            type="text"
+                            value={insuranceExpiryDate}
+                            onChange={(e) => setInsuranceExpiryDate(e.target.value)}
+                            placeholder="MM/AAAA"
+                            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Mutuelle complémentaire</label>
+                          <input
+                            type="text"
+                            value={mutualInsurance}
+                            onChange={(e) => setMutualInsurance(e.target.value)}
+                            placeholder="ex: MFG, CNSS..."
+                            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-medium text-slate-400 mb-1.5">Numéro de sécurité sociale</label>
+                          <input
+                            type="text"
+                            value={socialSecurityNumber}
+                            onChange={(e) => setSocialSecurityNumber(e.target.value)}
+                            placeholder="Numéro de sécurité sociale"
+                            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={insuranceSaving}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-500 disabled:opacity-50 transition-colors"
+                        >
+                          {insuranceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          {insuranceSaving ? 'Enregistrement...' : 'Enregistrer'}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+
+                {/* Card preview */}
+                {(insuranceProvider || insuranceNumber) && (
+                  <div className="bg-gradient-to-br from-teal-600/20 to-teal-800/20 rounded-xl border border-teal-600/30 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-teal-600/20 rounded-lg flex items-center justify-center">
+                        <Heart className="w-5 h-5 text-teal-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-slate-400">Carte de tiers payant</p>
+                        <p className="text-sm font-semibold text-white">{insuranceProvider || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-slate-500">N° adhérent</p>
+                        <p className="font-mono text-white">{insuranceNumber || '—'}</p>
+                      </div>
+                      {mutualInsurance && (
+                        <div>
+                          <p className="text-xs text-slate-500">Mutuelle</p>
+                          <p className="text-white">{mutualInsurance}</p>
+                        </div>
+                      )}
+                      {insuranceExpiryDate && (
+                        <div>
+                          <p className="text-xs text-slate-500">Valide jusqu'au</p>
+                          <p className="text-white">{insuranceExpiryDate}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Support Tab */}
             {activeTab === 'support' && (
               <div className="space-y-6">
@@ -1377,6 +1657,352 @@ export default function AccountPage() {
                 </div>
               </div>
             )}
+            {/* Proches Tab */}
+            {activeTab === 'proches' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <div className="flex items-center justify-between mb-1">
+                    <h2 className="text-lg font-semibold text-white">Mes proches</h2>
+                    <button
+                      onClick={() => setProchesForm({ firstName: '', lastName: '', relationship: 'enfant', phone: '' })}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-500 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ajouter
+                    </button>
+                  </div>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Gérez vos proches pour prendre des rendez-vous en leur nom.
+                  </p>
+
+                  {/* Add/edit form */}
+                  {prochesForm && (
+                    <div className="bg-slate-700/50 rounded-xl border border-slate-600 p-5 mb-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-semibold text-white">
+                          {prochesForm.id ? 'Modifier le proche' : 'Nouveau proche'}
+                        </h3>
+                        <button onClick={() => setProchesForm(null)} className="text-slate-400 hover:text-white">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Prénom *</label>
+                          <input
+                            value={prochesForm.firstName ?? ''}
+                            onChange={e => setProchesForm(p => ({ ...p!, firstName: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                            placeholder="Prénom"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Nom *</label>
+                          <input
+                            value={prochesForm.lastName ?? ''}
+                            onChange={e => setProchesForm(p => ({ ...p!, lastName: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                            placeholder="Nom"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Lien *</label>
+                          <select
+                            value={prochesForm.relationship ?? 'enfant'}
+                            onChange={e => setProchesForm(p => ({ ...p!, relationship: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                          >
+                            <option value="enfant">Enfant</option>
+                            <option value="conjoint">Conjoint(e)</option>
+                            <option value="parent">Parent</option>
+                            <option value="autre">Autre</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 mb-1 block">Téléphone</label>
+                          <input
+                            value={prochesForm.phone ?? ''}
+                            onChange={e => setProchesForm(p => ({ ...p!, phone: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                            placeholder="+241…"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-xs text-slate-400 mb-1 block">Date de naissance</label>
+                          <input
+                            type="date"
+                            value={prochesForm.birthDate ? prochesForm.birthDate.slice(0, 10) : ''}
+                            onChange={e => setProchesForm(p => ({ ...p!, birthDate: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-teal-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-3 mt-4">
+                        <button
+                          onClick={() => setProchesForm(null)}
+                          className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-600 transition-colors"
+                        >
+                          Annuler
+                        </button>
+                        <button
+                          onClick={saveProche}
+                          disabled={prochesSaving || !prochesForm.firstName || !prochesForm.lastName}
+                          className="flex-1 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-500 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          {prochesSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          Enregistrer
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {prochesLoading ? (
+                    <div className="flex items-center gap-3 text-slate-400 py-8">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm">Chargement…</span>
+                    </div>
+                  ) : beneficiaries.length === 0 && !prochesForm ? (
+                    <div className="text-center py-12">
+                      <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400 font-medium">Aucun proche enregistré</p>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Ajoutez vos proches pour prendre des RDV en leur nom.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {beneficiaries.map((b) => {
+                        const initials = (b.firstName[0] + b.lastName[0]).toUpperCase();
+                        const age = b.birthDate
+                          ? Math.floor((Date.now() - new Date(b.birthDate).getTime()) / (365.25 * 24 * 3600 * 1000))
+                          : null;
+                        const relLabel = { enfant: 'Enfant', conjoint: 'Conjoint(e)', parent: 'Parent', autre: 'Autre' }[b.relationship] ?? b.relationship;
+
+                        return (
+                          <div key={b.id} className="flex items-center gap-4 p-4 bg-slate-700/30 rounded-xl border border-slate-700">
+                            <div className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium text-sm">{b.firstName} {b.lastName}</p>
+                              <p className="text-slate-400 text-xs mt-0.5">
+                                {relLabel}{age !== null ? ` · ${age} ans` : ''}{b.phone ? ` · ${b.phone}` : ''}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => setProchesForm({ ...b })}
+                              className="p-2 text-slate-400 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteProche(b.id)}
+                              disabled={prochesDeleting === b.id}
+                              className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                            >
+                              {prochesDeleting === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Urgences Tab */}
+            {activeTab === 'urgence' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <h2 className="text-lg font-semibold text-white">Contacts d&apos;urgence</h2>
+                      <p className="text-sm text-slate-400 mt-0.5">Personnes à prévenir en cas d&apos;urgence médicale.</p>
+                    </div>
+                    <button
+                      onClick={() => setUrgenceForm({ fullName: '', relationship: '', phone: '' })}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600/80 text-white rounded-xl text-sm font-medium hover:bg-red-600 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ajouter
+                    </button>
+                  </div>
+
+                  {urgenceLoading ? (
+                    <div className="flex justify-center py-8 mt-4"><Loader2 className="w-6 h-6 text-teal-500 animate-spin" /></div>
+                  ) : (
+                    <div className="mt-5 space-y-3">
+                      {emergencyContacts.length === 0 && !urgenceForm && (
+                        <div className="text-center py-8">
+                          <AlertTriangle className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm text-slate-400">Aucun contact d&apos;urgence renseigné</p>
+                        </div>
+                      )}
+                      {emergencyContacts.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between p-4 bg-slate-700/40 rounded-xl border border-slate-600">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center text-red-400 font-bold text-sm shrink-0">
+                              {c.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">{c.fullName}</p>
+                              <p className="text-xs text-slate-400">{c.relationship} · {c.phone}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setUrgenceForm(c)} className="p-1.5 text-slate-400 hover:text-white transition-colors">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteEmergencyContact(c.id)}
+                              disabled={urgenceDeleting === c.id}
+                              className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"
+                            >
+                              {urgenceDeleting === c.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {urgenceForm && (
+                        <div className="bg-slate-700/50 rounded-xl border border-slate-600 p-5 space-y-4">
+                          <h3 className="text-sm font-semibold text-white">{urgenceForm.id ? 'Modifier' : 'Nouveau contact d\'urgence'}</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {[
+                              { label: 'Prénom & nom *', key: 'fullName', placeholder: 'Marie Dupont' },
+                              { label: 'Téléphone *', key: 'phone', placeholder: '+241 07 00 00 00' },
+                              { label: 'Téléphone secondaire', key: 'phoneSecondary', placeholder: '+241 06 00 00 00' },
+                              { label: 'Email', key: 'email', placeholder: 'marie@exemple.com' },
+                            ].map(({ label, key, placeholder }) => (
+                              <div key={key}>
+                                <label className="block text-xs font-medium text-slate-400 mb-1">{label}</label>
+                                <input
+                                  type="text"
+                                  value={(urgenceForm as any)[key] ?? ''}
+                                  onChange={e => setUrgenceForm(f => ({ ...f!, [key]: e.target.value }))}
+                                  placeholder={placeholder}
+                                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                                />
+                              </div>
+                            ))}
+                            <div>
+                              <label className="block text-xs font-medium text-slate-400 mb-1">Lien *</label>
+                              <select
+                                value={urgenceForm.relationship ?? ''}
+                                onChange={e => setUrgenceForm(f => ({ ...f!, relationship: e.target.value }))}
+                                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm focus:outline-none focus:border-teal-500"
+                              >
+                                <option value="">Choisir...</option>
+                                {['Conjoint(e)', 'Parent', 'Enfant', 'Frère / Sœur', 'Ami(e)', 'Autre'].map(r => <option key={r} value={r}>{r}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={saveEmergencyContact}
+                              disabled={urgenceSaving}
+                              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-500 disabled:opacity-50 transition-colors"
+                            >
+                              {urgenceSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                              Enregistrer
+                            </button>
+                            <button onClick={() => setUrgenceForm(null)} className="px-4 py-2 bg-slate-700 text-slate-300 rounded-xl text-sm font-medium hover:bg-slate-600 transition-colors">
+                              Annuler
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Waitlist Tab */}
+            {activeTab === 'waitlist' && (
+              <div className="space-y-6">
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <h2 className="text-lg font-semibold text-white mb-1">Liste d&apos;attente</h2>
+                  <p className="text-sm text-slate-400 mb-6">
+                    Vous serez notifié(e) par email dès qu&apos;un créneau se libère chez ces médecins.
+                  </p>
+                  {waitlistLoading ? (
+                    <div className="flex items-center gap-3 text-slate-400 py-8">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span className="text-sm">Chargement…</span>
+                    </div>
+                  ) : waitlistEntries.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Bell className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <p className="text-slate-400 font-medium">Aucune inscription en attente</p>
+                      <p className="text-sm text-slate-500 mt-1">
+                        Quand tous les créneaux d&apos;un médecin sont pris, rejoignez sa liste d&apos;attente depuis sa fiche.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {waitlistEntries.map((entry) => {
+                        const doctorName = entry.doctor?.fullName || entry.doctor?.email || 'Médecin';
+                        const dateStr = new Date(entry.date).toLocaleDateString('fr-FR', {
+                          weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                        });
+                        const statusLabel = entry.status === 'NOTIFIED' ? 'Créneau disponible !' : 'En attente';
+                        const statusColor = entry.status === 'NOTIFIED'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-slate-700 text-slate-400 border-slate-600';
+
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`flex items-center gap-4 p-4 rounded-xl border ${
+                              entry.status === 'NOTIFIED'
+                                ? 'bg-emerald-500/5 border-emerald-500/20'
+                                : 'bg-slate-700/30 border-slate-700'
+                            }`}
+                          >
+                            {/* Doctor avatar */}
+                            <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                              {doctorName.charAt(0).toUpperCase()}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white font-medium text-sm truncate">{doctorName}</p>
+                              <p className="text-slate-400 text-xs mt-0.5 capitalize">{dateStr}</p>
+                            </div>
+
+                            {/* Position */}
+                            <div className="text-center flex-shrink-0">
+                              <p className="text-white font-bold text-sm">#{entry.position}</p>
+                              <p className="text-slate-500 text-xs">position</p>
+                            </div>
+
+                            {/* Status */}
+                            <span className={`px-2.5 py-1 text-xs font-medium rounded-full border flex-shrink-0 ${statusColor}`}>
+                              {statusLabel}
+                            </span>
+
+                            {/* Remove */}
+                            <button
+                              onClick={() => removeFromWaitlist(entry.id)}
+                              disabled={waitlistRemoving === entry.id}
+                              className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors flex-shrink-0"
+                              title="Se retirer de la liste"
+                            >
+                              {waitlistRemoving === entry.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Trash2 className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Data & Privacy Tab */}
             {activeTab === 'data' && (
               <div className="space-y-6">

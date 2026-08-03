@@ -28,6 +28,12 @@ import {
   Plus,
   Eye,
   ArrowLeft,
+  RefreshCcw,
+  Share2,
+  Search,
+  Loader2,
+  CheckCircle,
+  X,
 } from 'lucide-react';
 
 interface HealthRecord {
@@ -98,6 +104,72 @@ export default function HealthRecordsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'prescriptions' | 'labs' | 'vaccinations' | 'timeline'>('overview');
   const [exporting, setExporting] = useState(false);
 
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
+
+  // Prescription renewal
+  const [renewalId, setRenewalId] = useState<string | null>(null);
+  const [renewalMsg, setRenewalMsg] = useState('');
+  const [renewalSending, setRenewalSending] = useState(false);
+  const [renewalDone, setRenewalDone] = useState<string | null>(null);
+
+  // Share dossier
+  const [showShare, setShowShare] = useState(false);
+  const [shareSearch, setShareSearch] = useState('');
+  const [shareDoctors, setShareDoctors] = useState<Array<{ id: string; fullName: string | null; doctorProfile?: { specialty?: string | null } | null }>>([]);
+  const [shareSearching, setShareSearching] = useState(false);
+  const [shareNote, setShareNote] = useState('');
+  const [shareSending, setShareSending] = useState(false);
+  const [shareDone, setShareDone] = useState(false);
+
+  async function requestRenewal(prescriptionId: string) {
+    setRenewalSending(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/prescriptions/${prescriptionId}/request-renewal`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: renewalMsg }),
+      });
+      if (res.ok) {
+        setRenewalDone(prescriptionId);
+        setRenewalId(null);
+        setRenewalMsg('');
+        setTimeout(() => setRenewalDone(null), 4000);
+      }
+    } catch { /* silent */ } finally { setRenewalSending(false); }
+  }
+
+  useEffect(() => {
+    if (!shareSearch || shareSearch.length < 2) { setShareDoctors([]); return; }
+    const t = setTimeout(async () => {
+      setShareSearching(true);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${apiBaseUrl}/search/doctors?q=${encodeURIComponent(shareSearch)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) { const d = await res.json(); setShareDoctors(Array.isArray(d) ? d.slice(0, 6) : []); }
+      } catch { /* silent */ } finally { setShareSearching(false); }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [shareSearch, apiBaseUrl]);
+
+  async function shareDossier(doctorId: string) {
+    setShareSending(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${apiBaseUrl}/patient-record/share`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorId, note: shareNote }),
+      });
+      if (res.ok) {
+        setShareDone(true);
+        setTimeout(() => { setShowShare(false); setShareDone(false); setShareSearch(''); setShareNote(''); }, 2500);
+      }
+    } catch { /* silent */ } finally { setShareSending(false); }
+  }
+
   // Mock data states
   const [vitals, setVitals] = useState<VitalSigns | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -105,8 +177,6 @@ export default function HealthRecordsPage() {
   const [vaccinations, setVaccinations] = useState<Vaccination[]>([]);
   const [allergies, setAllergies] = useState<Allergy[]>([]);
   const [timeline, setTimeline] = useState<HealthRecord[]>([]);
-
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000';
 
   const loadData = useCallback(async () => {
     try {
@@ -462,7 +532,92 @@ export default function HealthRecordsPage() {
             )}
             {exporting ? 'Export...' : 'Exporter PDF'}
           </button>
+          <button
+            onClick={() => setShowShare(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-slate-200 rounded-xl font-medium hover:bg-slate-600 transition-colors border border-slate-600"
+          >
+            <Share2 className="w-4 h-4" />
+            Partager
+          </button>
         </div>
+
+        {/* Share dossier modal */}
+        {showShare && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+            <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md shadow-2xl">
+              <div className="flex items-center justify-between p-6 border-b border-slate-700">
+                <div>
+                  <h2 className="text-white font-semibold">Partager mon dossier</h2>
+                  <p className="text-slate-400 text-sm mt-0.5">Envoyez un résumé à un médecin via la messagerie</p>
+                </div>
+                <button onClick={() => setShowShare(false)} className="text-slate-400 hover:text-white p-1">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {shareDone ? (
+                  <div className="text-center py-6">
+                    <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                    <p className="text-white font-medium">Dossier partagé !</p>
+                    <p className="text-slate-400 text-sm mt-1">Le médecin a reçu votre résumé dans la messagerie.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs text-slate-400 font-medium mb-1.5 block">Rechercher un médecin</label>
+                      <div className="relative">
+                        <input
+                          value={shareSearch}
+                          onChange={e => setShareSearch(e.target.value)}
+                          placeholder="Nom du médecin…"
+                          className="w-full px-4 py-2.5 pl-10 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500"
+                        />
+                        {shareSearching
+                          ? <Loader2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 animate-spin" />
+                          : <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />}
+                      </div>
+                      {shareDoctors.length > 0 && (
+                        <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                          {shareDoctors.map(d => (
+                            <button
+                              key={d.id}
+                              onClick={() => shareDossier(d.id)}
+                              disabled={shareSending}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-left transition-colors"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                {(d.fullName ?? '?')[0]}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-white text-sm font-medium truncate">{d.fullName ?? 'Médecin'}</p>
+                                {d.doctorProfile?.specialty && (
+                                  <p className="text-slate-400 text-xs truncate">{d.doctorProfile.specialty}</p>
+                                )}
+                              </div>
+                              {shareSending
+                                ? <Loader2 className="w-4 h-4 text-slate-400 animate-spin ml-auto" />
+                                : <Share2 className="w-4 h-4 text-teal-400 ml-auto flex-shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 font-medium mb-1.5 block">Note (optionnel)</label>
+                      <textarea
+                        value={shareNote}
+                        onChange={e => setShareNote(e.target.value)}
+                        placeholder="Ajoutez un message pour le médecin…"
+                        rows={3}
+                        className="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 mb-6 overflow-x-auto pb-2">
@@ -700,6 +855,52 @@ export default function HealthRecordsPage() {
                       <p className="text-xs text-slate-500 mt-2">
                         {prescription.refillsRemaining} renouvellement{prescription.refillsRemaining > 1 ? 's' : ''} restant{prescription.refillsRemaining > 1 ? 's' : ''}
                       </p>
+                    )}
+
+                    {/* Renewal button */}
+                    {prescription.status === 'active' && (
+                      <div className="mt-3">
+                        {renewalDone === prescription.id ? (
+                          <div className="flex items-center gap-2 text-emerald-400 text-xs">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Demande envoyée au médecin
+                          </div>
+                        ) : renewalId === prescription.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={renewalMsg}
+                              onChange={e => setRenewalMsg(e.target.value)}
+                              placeholder="Message optionnel pour le médecin…"
+                              rows={2}
+                              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-xs placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setRenewalId(null)}
+                                className="flex-1 py-1.5 text-xs text-slate-400 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors"
+                              >
+                                Annuler
+                              </button>
+                              <button
+                                onClick={() => requestRenewal(prescription.id)}
+                                disabled={renewalSending}
+                                className="flex-1 py-1.5 text-xs text-white bg-teal-600 rounded-lg hover:bg-teal-500 disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
+                              >
+                                {renewalSending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCcw className="w-3 h-3" />}
+                                Envoyer
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setRenewalId(prescription.id)}
+                            className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+                          >
+                            <RefreshCcw className="w-3.5 h-3.5" />
+                            Demander un renouvellement
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

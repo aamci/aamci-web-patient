@@ -17,6 +17,8 @@ export interface Doctor {
     address?: string | null;
     presentation?: string | null;
     hospitalType?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
   } | null;
 }
 

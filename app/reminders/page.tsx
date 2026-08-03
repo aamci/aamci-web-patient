@@ -140,7 +140,6 @@ export default function RemindersPage() {
       return;
     }
 
-    // Load preferences from localStorage (no backend endpoint for preferences yet)
     const savedPrefs = localStorage.getItem('reminder_preferences');
     if (savedPrefs) {
       try {
@@ -148,15 +147,33 @@ export default function RemindersPage() {
       } catch { /* ignore parse errors */ }
     }
 
+    // Load SMS opt-in from API
+    fetch(`${apiBaseUrl}/me/notification-preferences`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && typeof d.smsReminderEnabled === 'boolean') {
+        setPreferences(p => ({
+          ...p,
+          appointmentReminders: { ...p.appointmentReminders, sms: d.smsReminderEnabled },
+        }));
+      }
+    }).catch(() => {});
+
     fetchUpcomingReminders().finally(() => setLoading(false));
-  }, [router, fetchUpcomingReminders]);
+  }, [router, fetchUpcomingReminders, apiBaseUrl]);
 
   const savePreferences = async () => {
     setSaving(true);
-
-    // Save to localStorage (no backend endpoint for preferences yet)
     localStorage.setItem('reminder_preferences', JSON.stringify(preferences));
-
+    // Persist SMS opt-in/out to API
+    const token = localStorage.getItem('token');
+    if (token) {
+      await fetch(`${apiBaseUrl}/me/notification-preferences`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ smsReminderEnabled: preferences.appointmentReminders.sms }),
+      }).catch(() => {});
+    }
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);

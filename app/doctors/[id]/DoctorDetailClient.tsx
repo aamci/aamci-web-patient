@@ -73,6 +73,7 @@ type AppointmentKind = {
   durationMinutes: number;
   price?: number | null;
   color?: string | null;
+  requiresPrePayment?: boolean;
 };
 
 const DAYS_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -118,6 +119,11 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [bookingFor, setBookingFor] = useState<'me' | 'other'>('me');
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [beneficiaryPhone, setBeneficiaryPhone] = useState('');
+
+  // Saved beneficiaries (proches)
+  type SavedBeneficiary = { id: string; firstName: string; lastName: string; relationship: string; phone?: string | null };
+  const [savedBeneficiaries, setSavedBeneficiaries] = useState<SavedBeneficiary[]>([]);
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string | null>(null);
 
   // Établissements du médecin
   const [facilities, setFacilities] = useState<Array<{ id: string; name: string; type: string; city: string | null; address: string | null }>>([]);
@@ -174,6 +180,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           durationMinutes: k.durationMins || k.durationMinutes || 30,
           price: k.price ?? null,
           color: k.color ?? null,
+          requiresPrePayment: k.requiresPrePayment ?? false,
         }));
         setAppointmentKinds(kindsList);
         if (kindsList.length > 0) {
@@ -229,6 +236,12 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     }
     return dates;
   }, [weekOffset]);
+
+  // Earliest available slot across all weeks
+  const earliestSlot = useMemo(() => {
+    if (slots.length === 0) return null;
+    return slots.reduce((min, s) => new Date(s.start) < new Date(min.start) ? s : min, slots[0]);
+  }, [slots]);
 
   // Group slots by day and hour
   const slotsGrid = useMemo(() => {
@@ -344,6 +357,25 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
       const data = await response.json();
       setBookingSuccess(true);
       setSlots((prev) => prev.filter((s) => s.id !== selectedSlot.id));
+
+      // Check if kind requires pre-payment
+      const kind = appointmentKinds.find(k => k.id === selectedKind);
+      const requiresPayment = (kind as any)?.requiresPrePayment ?? false;
+
+      if (requiresPayment && data.id) {
+        // Create payment intent and redirect to Stripe payment page
+        const token = localStorage.getItem('token');
+        const piRes = await fetch(`${apiBase}/payments/prepay/${data.id}/create-intent`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (piRes.ok) {
+          const pi = await piRes.json();
+          const cs = pi.clientSecret ?? pi.client_secret ?? '';
+          router.push(`/paiement?aid=${data.id}&cs=${encodeURIComponent(cs)}` as any);
+          return;
+        }
+      }
 
       // Redirect after success
       setTimeout(() => {
@@ -570,6 +602,37 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
         {/* Slots Tab */}
         {activeTab === 'slots' && (
           <div className="space-y-6">
+            {/* Premier créneau disponible */}
+            {earliestSlot && (
+              <div className="flex items-center justify-between bg-teal-600/10 border border-teal-600/30 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-5 h-5 text-teal-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-400">Premier créneau disponible</p>
+                    <p className="text-sm font-semibold text-white">
+                      {new Date(earliestSlot.start).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      {' '}à{' '}
+                      {new Date(earliestSlot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const slotDate = new Date(earliestSlot.start);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const diffDays = Math.floor((slotDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                    setWeekOffset(Math.max(0, Math.floor(diffDays / 7)));
+                    setSelectedSlot(earliestSlot);
+                    setBookingStep('pour_qui');
+                  }}
+                  className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-500 transition-colors shrink-0"
+                >
+                  Réserver
+                </button>
+              </div>
+            )}
+
             {/* Week navigation */}
             <div className="flex items-center justify-between">
               <button
@@ -614,6 +677,11 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       {kind.label}
                       {kind.durationMinutes && (
                         <span className="ml-2 text-xs opacity-70">{kind.durationMinutes} min</span>
+                      )}
+                      {kind.requiresPrePayment && (
+                        <span className="ml-1.5 text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
+                          {kind.price ? `${Number(kind.price).toLocaleString('fr-FR')} FCFA` : 'Prépayé'}
+                        </span>
                       )}
                     </button>
                   ))}
@@ -695,7 +763,17 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                               <td key={idx} className="px-2 py-2 text-center">
                                 {slot && !isPast ? (
                                   <button
-                                    onClick={() => setSelectedSlot(slot)}
+                                    onClick={() => {
+                                      setSelectedSlot(slot);
+                                      // Load saved beneficiaries when modal opens
+                                      const token = localStorage.getItem('token');
+                                      if (token && apiBase) {
+                                        fetch(`${apiBase}/beneficiaries`, { headers: { Authorization: `Bearer ${token}` } })
+                                          .then(r => r.ok ? r.json() : [])
+                                          .then(d => setSavedBeneficiaries(Array.isArray(d) ? d : []))
+                                          .catch(() => {});
+                                      }
+                                    }}
                                     className="w-full px-3 py-2 bg-teal-600/20 text-teal-400 rounded-lg text-sm font-medium hover:bg-teal-600 hover:text-white transition-colors"
                                   >
                                     Réserver
@@ -986,8 +1064,10 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   {bookingStep === 'pour_qui' && (
                     <div className="space-y-2">
                       <p className="text-xs text-slate-400 mb-2">Pour qui prenez-vous rendez-vous ?</p>
+
+                      {/* Moi-même */}
                       <button
-                        onClick={() => setBookingFor('me')}
+                        onClick={() => { setBookingFor('me'); setSelectedBeneficiaryId(null); }}
                         className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
                           bookingFor === 'me'
                             ? 'border-teal-500 bg-teal-600/10'
@@ -1010,10 +1090,48 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         </div>
                       </button>
 
+                      {/* Saved beneficiaries */}
+                      {savedBeneficiaries.map((b) => {
+                        const isSelected = bookingFor === 'other' && selectedBeneficiaryId === b.id;
+                        const relLabel = { enfant: 'Enfant', conjoint: 'Conjoint(e)', parent: 'Parent', autre: 'Proche' }[b.relationship] ?? b.relationship;
+                        return (
+                          <button
+                            key={b.id}
+                            onClick={() => {
+                              setBookingFor('other');
+                              setSelectedBeneficiaryId(b.id);
+                              setBeneficiaryName(`${b.firstName} ${b.lastName}`);
+                              setBeneficiaryPhone(b.phone ?? '');
+                            }}
+                            className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
+                              isSelected
+                                ? 'border-teal-500 bg-teal-600/10'
+                                : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-white text-xs font-bold">
+                                {b.firstName[0]}{b.lastName[0]}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-white">{b.firstName} {b.lastName}</div>
+                                <div className="text-xs text-slate-400">{relLabel}</div>
+                              </div>
+                            </div>
+                            <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
+                              isSelected ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
+                            }`}>
+                              {isSelected && <Check className="w-full h-full text-white p-0.5" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+
+                      {/* Manual entry for "someone else" */}
                       <button
-                        onClick={() => setBookingFor('other')}
+                        onClick={() => { setBookingFor('other'); setSelectedBeneficiaryId(null); setBeneficiaryName(''); setBeneficiaryPhone(''); }}
                         className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center justify-between ${
-                          bookingFor === 'other'
+                          bookingFor === 'other' && !selectedBeneficiaryId
                             ? 'border-teal-500 bg-teal-600/10'
                             : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
                         }`}
@@ -1023,18 +1141,18 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                             <User className="w-4 h-4 text-slate-400" />
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-white">Quelqu'un d'autre</div>
-                            <div className="text-xs text-slate-400">Proche, famille...</div>
+                            <div className="text-sm font-medium text-white">Autre personne</div>
+                            <div className="text-xs text-slate-400">Saisir manuellement</div>
                           </div>
                         </div>
                         <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
-                          bookingFor === 'other' ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
+                          bookingFor === 'other' && !selectedBeneficiaryId ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
                         }`}>
-                          {bookingFor === 'other' && <Check className="w-full h-full text-white p-0.5" />}
+                          {bookingFor === 'other' && !selectedBeneficiaryId && <Check className="w-full h-full text-white p-0.5" />}
                         </div>
                       </button>
 
-                      {bookingFor === 'other' && (
+                      {bookingFor === 'other' && !selectedBeneficiaryId && (
                         <div className="space-y-3 mt-3">
                           <input
                             type="text"
