@@ -160,6 +160,41 @@ export default function AccountPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Consentements
+  type ConsentRecord = { type: string; granted: boolean; grantedAt?: string | null; revokedAt?: string | null };
+  const [consents, setConsents] = useState<ConsentRecord[]>([]);
+  const [consentsLoading, setConsentsLoading] = useState(false);
+  const [consentsUpdating, setConsentsUpdating] = useState<string | null>(null);
+
+  async function loadConsents() {
+    if (!user?.id) return;
+    setConsentsLoading(true);
+    try {
+      const r = await authedFetch(`/patient-record/${user.id}/consents`);
+      if (r.ok) setConsents(await r.json());
+    } finally {
+      setConsentsLoading(false);
+    }
+  }
+
+  async function updateConsent(type: string, granted: boolean) {
+    if (!user?.id) return;
+    setConsentsUpdating(type);
+    try {
+      const r = await authedFetch(`/patient-record/${user.id}/consents`, {
+        method: 'POST',
+        body: JSON.stringify({ type, granted }),
+      });
+      if (r.ok) {
+        setConsents(prev =>
+          prev.map(c => c.type === type ? { ...c, granted, grantedAt: granted ? new Date().toISOString() : c.grantedAt, revokedAt: granted ? null : new Date().toISOString() } : c)
+        );
+      }
+    } finally {
+      setConsentsUpdating(null);
+    }
+  }
+
   // Waitlist (liste d'attente)
   type WaitlistEntry = {
     id: string;
@@ -341,7 +376,7 @@ export default function AccountPage() {
     if (deleteConfirm !== 'SUPPRIMER') return;
     setDeleteLoading(true);
     try {
-      await authedFetch('/me', { method: 'DELETE' });
+      await authedFetch('/auth/account', { method: 'DELETE' });
       logout();
       router.replace('/auth/login');
     } catch (e: unknown) {
@@ -573,6 +608,7 @@ export default function AccountPage() {
     if (activeTab === 'proches') loadProches();
     if (activeTab === 'assurance') loadInsurance();
     if (activeTab === 'urgence') loadEmergencyContacts();
+    if (activeTab === 'data') loadConsents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -2036,6 +2072,56 @@ export default function AccountPage() {
                         </button>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Consentements */}
+                  <div className="border border-slate-600 rounded-xl p-5 mb-4">
+                    <h3 className="font-medium text-white mb-1">Mes consentements</h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Gérez vos consentements au traitement de vos données. Le consentement aux soins est obligatoire pour utiliser la plateforme.
+                    </p>
+                    {consentsLoading ? (
+                      <div className="flex items-center gap-2 text-slate-400 text-sm">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {[
+                          { type: 'CARE',               label: 'Consentement aux soins',              desc: 'Obligatoire pour utiliser la plateforme.', locked: true },
+                          { type: 'DATA_SHARING',       label: 'Partage de données médicales',        desc: 'Autoriser les professionnels de santé à accéder à votre dossier.' },
+                          { type: 'TELECONSULTATION',   label: 'Téléconsultation',                    desc: 'Participer à des consultations vidéo.' },
+                          { type: 'EMAIL_COMMUNICATION',label: 'Communications électroniques',        desc: 'Recevoir des rappels et informations par email / SMS.' },
+                          { type: 'RESEARCH',           label: 'Recherche clinique',                  desc: 'Contribuer anonymement à des études médicales.' },
+                        ].map(({ type, label, desc, locked }) => {
+                          const consent = consents.find(c => c.type === type);
+                          const granted = consent?.granted ?? (type === 'CARE');
+                          const updating = consentsUpdating === type;
+                          return (
+                            <div key={type} className="flex items-start justify-between gap-4 py-3 border-b border-slate-700 last:border-0">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-white">{label}</p>
+                                <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                                {consent?.revokedAt && !granted && (
+                                  <p className="text-xs text-slate-500 mt-1">Révoqué le {new Date(consent.revokedAt).toLocaleDateString('fr-FR')}</p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={locked || updating}
+                                onClick={() => !locked && updateConsent(type, !granted)}
+                                className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${
+                                  locked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                } ${granted ? 'bg-teal-600' : 'bg-slate-600'}`}
+                                title={locked ? 'Ce consentement est obligatoire' : undefined}
+                              >
+                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${granted ? 'translate-x-5' : 'translate-x-0'}`} />
+                                {updating && <Loader2 className="absolute inset-0 m-auto w-3.5 h-3.5 animate-spin text-white" />}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   {/* Delete */}

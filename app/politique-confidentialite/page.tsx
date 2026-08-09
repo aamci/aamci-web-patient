@@ -1,14 +1,14 @@
 export default function PolitiqueConfidentialite() {
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 py-12 px-4">
-      <div className="max-w-3xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-3xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Politique de confidentialité</h1>
-          <p className="text-slate-400 text-sm">Dernière mise à jour : mai 2026</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-1">Politique de confidentialité</h1>
+          <p className="text-gray-500 text-sm">Dernière mise à jour : mai 2026</p>
         </div>
 
-        <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 text-sm text-slate-300 space-y-1">
-          <p className="font-medium text-white">Base légale</p>
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-5 text-sm text-teal-800 space-y-1">
+          <p className="font-semibold">Base légale</p>
           <p>Loi N° 025/2023 du 9 juillet 2023 modifiant la loi de 2011 sur la protection des données personnelles — République Gabonaise.</p>
           <p>Autorité de contrôle : APDPVP (Autorité pour la Protection des Données Personnelles et de la Vie Privée).</p>
         </div>
@@ -51,14 +51,14 @@ export default function PolitiqueConfidentialite() {
             content: `Pour exercer vos droits ou pour toute question relative à vos données personnelles, contactez-nous via le formulaire de support de l'application ou par email à : privacy@ibogha.ga`,
           },
         ].map((section) => (
-          <div key={section.title} className="bg-slate-800 border border-slate-700 rounded-xl p-6">
-            <h2 className="text-base font-semibold text-white mb-3">{section.title}</h2>
-            <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{section.content}</p>
+          <div key={section.title} className="bg-white border border-gray-200 rounded-xl p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-3">{section.title}</h2>
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{section.content}</p>
           </div>
         ))}
 
         <div className="text-center">
-          <a href="/account" className="text-teal-400 hover:underline text-sm">← Retour à mon compte</a>
+          <a href="/account" className="text-teal-600 hover:underline text-sm">← Retour à mon compte</a>
         </div>
       </div>
     </div>

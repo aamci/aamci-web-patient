@@ -48,6 +48,7 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string; fullName?: string }>({});
@@ -90,7 +91,15 @@ export default function LoginPage() {
         return;
       }
 
-      const body = result.data;
+      if (mode === 'register' && !consentAccepted) {
+        setErr('Vous devez accepter la politique de confidentialité pour créer un compte.');
+        setLoading(false);
+        return;
+      }
+
+      const body = mode === 'register'
+        ? { ...result.data, consentedToTerms: true }
+        : result.data;
 
       const r = await callApi(
         mode === 'register' ? '/auth/register' : '/auth/login',
@@ -432,12 +441,21 @@ export default function LoginPage() {
               )}
             </button>
             {mode === 'register' && (
-              <p className="text-center text-xs text-slate-500 mt-2">
-                En créant un compte, vous acceptez nos{' '}
-                <a href="/conditions-utilisation" target="_blank" className="text-teal-400 hover:underline">conditions d&apos;utilisation</a>
-                {' '}et notre{' '}
-                <a href="/politique-confidentialite" target="_blank" className="text-teal-400 hover:underline">politique de confidentialité</a>.
-              </p>
+              <label className="flex items-start gap-2.5 cursor-pointer mt-2">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(e) => setConsentAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-600 bg-slate-800 text-teal-600 focus:ring-teal-500 shrink-0"
+                />
+                <span className="text-xs text-slate-400 leading-relaxed">
+                  J&apos;ai lu et j&apos;accepte les{' '}
+                  <a href="/conditions-utilisation" target="_blank" className="text-teal-400 hover:underline">conditions d&apos;utilisation</a>
+                  {' '}et la{' '}
+                  <a href="/politique-confidentialite" target="_blank" className="text-teal-400 hover:underline">politique de confidentialité</a>.{' '}
+                  <span className="text-red-400">*</span>
+                </span>
+              </label>
             )}
 
             {/* Divider */}
