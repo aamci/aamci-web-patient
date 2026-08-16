@@ -88,7 +88,7 @@ La poursuite de l'utilisation du service après notification vaut acceptation de
             title: '11. Droit applicable',
             content: `Les présentes CGU sont soumises au droit gabonais. En cas de litige, les tribunaux compétents de Libreville, Gabon, seront seuls compétents.
 
-Pour toute réclamation : support@ibogha.ga`,
+Pour toute réclamation : support@ibogha241.ga`,
           },
         ].map((section) => (
           <div key={section.title} className="bg-slate-800 border border-slate-700 rounded-xl p-6">
