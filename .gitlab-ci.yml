@@ -32,6 +32,8 @@ stages:
 
 build:web-patient:
   stage: build
+  tags:
+    - docker
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
@@ -54,6 +56,8 @@ build:web-patient:
 
 build:web-patient:preprod:
   stage: build
+  tags:
+    - docker
   image:
     name: gcr.io/kaniko-project/executor:v1.23.2-debug
     entrypoint: [""]
@@ -76,6 +80,8 @@ build:web-patient:preprod:
 
 deploy:web-patient:
   stage: deploy
+  tags:
+    - docker
   image: alpine:3.19
   needs: ["build:web-patient"]
   rules:
@@ -93,6 +99,8 @@ deploy:web-patient:
 
 deploy:web-patient:preprod:
   stage: deploy
+  tags:
+    - docker
   image: alpine:3.19
   needs: ["build:web-patient:preprod"]
   rules:
