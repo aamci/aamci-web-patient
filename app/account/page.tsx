@@ -159,6 +159,8 @@ export default function AccountPage() {
   const [dataLoading, setDataLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<string | null>(null);
+  const [cancelDeletionLoading, setCancelDeletionLoading] = useState(false);
 
   // Consentements
   type ConsentRecord = { type: string; granted: boolean; grantedAt?: string | null; revokedAt?: string | null };
@@ -385,6 +387,18 @@ export default function AccountPage() {
     }
   }
 
+  async function handleCancelDeletion() {
+    setCancelDeletionLoading(true);
+    try {
+      await authedFetch('/auth/cancel-deletion', { method: 'PATCH' });
+      setPendingDeletion(null);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Annulation impossible');
+    } finally {
+      setCancelDeletionLoading(false);
+    }
+  }
+
   // Invoices (billing tab)
   type Invoice = {
     id: string; number?: string; status: string; totalAmount?: number; amount?: number;
@@ -608,7 +622,14 @@ export default function AccountPage() {
     if (activeTab === 'proches') loadProches();
     if (activeTab === 'assurance') loadInsurance();
     if (activeTab === 'urgence') loadEmergencyContacts();
-    if (activeTab === 'data') loadConsents();
+    if (activeTab === 'data') {
+      loadConsents();
+      authedFetch('/auth/deletion-status', {}).then(async r => {
+        if (!r) return;
+        const d = await r.json();
+        if (d?.hasPendingDeletion) setPendingDeletion(d.scheduledDeletionAt);
+      }).catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -2125,38 +2146,62 @@ export default function AccountPage() {
                   </div>
 
                   {/* Delete */}
-                  <div className="border border-red-500/30 rounded-xl p-5 bg-red-500/5">
+                  <div className={`border rounded-xl p-5 ${pendingDeletion ? 'border-amber-500/30 bg-amber-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
                     <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                        <Trash2 className="w-5 h-5 text-red-400" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${pendingDeletion ? 'bg-amber-500/10' : 'bg-red-500/10'}`}>
+                        {pendingDeletion ? <Clock className="w-5 h-5 text-amber-400" /> : <Trash2 className="w-5 h-5 text-red-400" />}
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-medium text-red-400 mb-1">Supprimer mon compte</h3>
-                        <p className="text-sm text-slate-400 mb-4">
-                          Cette action est irréversible. Vos données personnelles seront anonymisées
-                          (nom, email, téléphone). Les données médicales sont conservées à des fins légales.
-                        </p>
-                        <p className="text-xs text-slate-500 mb-3">
-                          Tapez <span className="font-mono text-red-400 font-bold">SUPPRIMER</span> pour confirmer :
-                        </p>
-                        <div className="flex gap-3">
-                          <input
-                            type="text"
-                            value={deleteConfirm}
-                            onChange={e => setDeleteConfirm(e.target.value)}
-                            placeholder="SUPPRIMER"
-                            className="flex-1 max-w-[200px] bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleDeleteAccount}
-                            disabled={deleteConfirm !== 'SUPPRIMER' || deleteLoading}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                            Supprimer mon compte
-                          </button>
-                        </div>
+                        <h3 className={`font-medium mb-1 ${pendingDeletion ? 'text-amber-400' : 'text-red-400'}`}>
+                          {pendingDeletion ? 'Suppression programmée' : 'Supprimer mon compte'}
+                        </h3>
+                        {pendingDeletion ? (
+                          <>
+                            <p className="text-sm text-slate-400 mb-3">
+                              Votre compte sera définitivement supprimé le{' '}
+                              <span className="text-white font-medium">
+                                {new Date(pendingDeletion).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                              </span>. Vous pouvez annuler avant cette date.
+                            </p>
+                            <button
+                              type="button"
+                              onClick={handleCancelDeletion}
+                              disabled={cancelDeletionLoading}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40"
+                            >
+                              {cancelDeletionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                              Annuler la suppression
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-slate-400 mb-4">
+                              Cette action est irréversible. Vos données personnelles seront supprimées après 30 jours.
+                              Les données de paiement sont conservées à des fins légales.
+                            </p>
+                            <p className="text-xs text-slate-500 mb-3">
+                              Tapez <span className="font-mono text-red-400 font-bold">SUPPRIMER</span> pour confirmer :
+                            </p>
+                            <div className="flex gap-3">
+                              <input
+                                type="text"
+                                value={deleteConfirm}
+                                onChange={e => setDeleteConfirm(e.target.value)}
+                                placeholder="SUPPRIMER"
+                                className="flex-1 max-w-[200px] bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleDeleteAccount}
+                                disabled={deleteConfirm !== 'SUPPRIMER' || deleteLoading}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {deleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                Supprimer mon compte
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

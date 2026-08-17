@@ -26,8 +26,10 @@ import {
   FileText,
   MessageSquare,
   Bell,
+  Flag,
 } from 'lucide-react';
 import { useAuth } from '@/app/_providers/AuthProvider';
+import ReportBlockModal from '@/components/ReportBlockModal';
 
 function getApiBase(): string | null {
   let base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -99,6 +101,8 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   // Week navigation
   const [weekOffset, setWeekOffset] = useState(0);
@@ -521,6 +525,15 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   >
                     <Heart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
                   </button>
+                  {user && (
+                    <button
+                      onClick={() => setShowReport(true)}
+                      className="p-3 rounded-xl bg-slate-700 text-slate-400 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"
+                      title="Signaler ce médecin"
+                    >
+                      <Flag className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1551,6 +1564,19 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal signalement / blocage médecin */}
+      {showReport && user && (
+        <ReportBlockModal
+          targetId={doctorId}
+          targetName={doctor?.fullName || 'Ce médecin'}
+          token={localStorage.getItem('token') || ''}
+          isBlocked={isBlocked}
+          onBlock={() => setIsBlocked(true)}
+          onUnblock={() => setIsBlocked(false)}
+          onClose={() => setShowReport(false)}
+        />
       )}
     </div>
   );

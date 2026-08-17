@@ -19,7 +19,9 @@ import {
   Loader2,
   Plus,
   Stethoscope,
+  MoreVertical,
 } from 'lucide-react';
+import ReportBlockModal from '@/components/ReportBlockModal';
 
 interface Message {
   id: string;
@@ -69,6 +71,8 @@ function MessagesPageContent() {
 
   // New conversation modal
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
   const [doctorSearch, setDoctorSearch] = useState('');
   const [doctorResults, setDoctorResults] = useState<DoctorSuggestion[]>([]);
   const [searchingDoctors, setSearchingDoctors] = useState(false);
@@ -460,6 +464,20 @@ function MessagesPageContent() {
 
   return (
     <div className="min-h-screen bg-slate-900">
+      {/* Modal signalement / blocage */}
+      {showReportModal && selectedConversation && (
+        <ReportBlockModal
+          targetId={selectedConversation.doctorId}
+          targetName={selectedConversation.doctorName}
+          conversationId={selectedConversation.id}
+          token={localStorage.getItem('token') || ''}
+          isBlocked={blockedIds.has(selectedConversation.doctorId)}
+          onBlock={() => setBlockedIds(prev => new Set([...prev, selectedConversation.doctorId]))}
+          onUnblock={() => setBlockedIds(prev => { const s = new Set(prev); s.delete(selectedConversation.doctorId); return s; })}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
+
       {/* Modal nouvelle conversation */}
       {showNewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -673,6 +691,13 @@ function MessagesPageContent() {
                       className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
                     >
                       <Video className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => setShowReportModal(true)}
+                      className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                      title="Signaler ou bloquer"
+                    >
+                      <MoreVertical className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
