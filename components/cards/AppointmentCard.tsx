@@ -16,7 +16,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 
-export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW';
+export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'COMPLETED';
 
 export interface Appointment {
   id: string;
@@ -89,6 +89,13 @@ const STATUS_CONFIG: Record<
     textClass: 'text-slate-400',
     borderClass: 'border-slate-500/30',
   },
+  COMPLETED: {
+    label: 'Terminé',
+    icon: <CheckCircle className="w-3.5 h-3.5" />,
+    bgClass: 'bg-teal-500/20',
+    textClass: 'text-teal-400',
+    borderClass: 'border-teal-500/30',
+  },
 };
 
 export default function AppointmentCard({
@@ -117,18 +124,12 @@ export default function AppointmentCard({
     appointment.doctor?.name ||
     (appointment.slot?.ownerType === 'HOSPITAL' ? appointment.hospital?.name : 'Médecin');
 
-  const statusConfig = STATUS_CONFIG[appointment.status];
+  const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.PENDING;
 
   // Show "Terminé" for past confirmed appointments
   const displayStatus =
     isPast && appointment.status === 'CONFIRMED'
-      ? {
-          label: 'Terminé',
-          icon: <CheckCircle className="w-3.5 h-3.5" />,
-          bgClass: 'bg-teal-500/20',
-          textClass: 'text-teal-400',
-          borderClass: 'border-teal-500/30',
-        }
+      ? STATUS_CONFIG.COMPLETED
       : statusConfig;
 
   const consultationType = appointment.kind?.name || appointment.type || 'Consultation';
