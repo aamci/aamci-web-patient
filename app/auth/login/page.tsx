@@ -20,7 +20,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import { jwtDecode } from 'jwt-decode';
+import jwtDecode from 'jwt-decode';
 
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
