@@ -114,6 +114,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [selectedKind, setSelectedKind] = useState<string | null>(null);
   const [bookingNotes, setBookingNotes] = useState('');
+  const [selectedSymptoms, setSelectedSymptoms] = useState<Set<string>>(new Set());
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
@@ -187,9 +188,6 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           requiresPrePayment: k.requiresPrePayment ?? false,
         }));
         setAppointmentKinds(kindsList);
-        if (kindsList.length > 0) {
-          setSelectedKind(kindsList[0].id);
-        }
 
         // Fetch doctor's facilities (public endpoint)
         try {
@@ -344,7 +342,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
           slotStart: selectedSlot.start,
           slotEnd: selectedSlot.end,
           kindId: selectedKind || undefined,
-          notes: bookingNotes || `RDV avec ${doctor?.fullName || 'le médecin'}`,
+          notes: [[...selectedSymptoms].join(', '), bookingNotes.trim()].filter(Boolean).join(' — ') || `RDV avec ${doctor?.fullName || 'le médecin'}`,
           doctorId: doctorId,
           facilityId: selectedFacilityId || undefined,
           beneficiaryName: bookingFor === 'other' ? beneficiaryName || undefined : undefined,
@@ -680,7 +678,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   {appointmentKinds.map((kind) => (
                     <button
                       key={kind.id}
-                      onClick={() => setSelectedKind(kind.id)}
+                      onClick={() => setSelectedKind(prev => prev === kind.id ? null : kind.id)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         selectedKind === kind.id
                           ? 'bg-teal-600 text-white'
@@ -1194,7 +1192,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         appointmentKinds.map((kind) => (
                           <button
                             key={kind.id}
-                            onClick={() => setSelectedKind(kind.id)}
+                            onClick={() => setSelectedKind(prev => prev === kind.id ? null : kind.id)}
                             className={`w-full p-3 rounded-xl border-2 transition-all text-left ${
                               selectedKind === kind.id
                                 ? 'border-teal-500 bg-teal-600/10'
@@ -1270,15 +1268,26 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                           Suggestions rapides
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {['Consultation de suivi', 'Douleur', 'Fièvre', 'Fatigue', 'Bilan de santé', 'Renouvellement ordonnance'].map((symptom) => (
-                            <button
-                              key={symptom}
-                              onClick={() => setBookingNotes(prev => prev ? `${prev}, ${symptom}` : symptom)}
-                              className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded-lg text-sm hover:bg-slate-600 transition-colors"
-                            >
-                              {symptom}
-                            </button>
-                          ))}
+                          {['Consultation de suivi', 'Douleur', 'Fièvre', 'Fatigue', 'Bilan de santé', 'Renouvellement ordonnance'].map((symptom) => {
+                            const active = selectedSymptoms.has(symptom);
+                            return (
+                              <button
+                                key={symptom}
+                                onClick={() => setSelectedSymptoms(prev => {
+                                  const next = new Set(prev);
+                                  active ? next.delete(symptom) : next.add(symptom);
+                                  return next;
+                                })}
+                                className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                                  active
+                                    ? 'bg-teal-600 text-white'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }`}
+                              >
+                                {symptom}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>

@@ -20,6 +20,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { jwtDecode } from 'jwt-decode';
 
 function getApiBase(): string | null {
   let b = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -56,6 +57,9 @@ export default function LoginPage() {
   const [showResend, setShowResend] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [twoFactorStep, setTwoFactorStep] = useState(false);
+  const [tempToken, setTempToken] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -130,7 +134,22 @@ export default function LoginPage() {
         return;
       }
 
+      if (mode === 'login' && d?.requiresTwoFactor) {
+        setTempToken(d.tempToken);
+        setTwoFactorStep(true);
+        return;
+      }
+
       if (d?.success && d?.token) {
+        try {
+          const decoded = jwtDecode<{ role?: string }>(d.token);
+          if (decoded.role === 'DOCTOR' || decoded.role === 'ADMIN') {
+            setErr('Ce portail est réservé aux patients. Veuillez vous connecter sur le portail professionnel ou créer un compte patient.');
+            return;
+          }
+        } catch {
+          // si le décodage échoue, on laisse passer (ne bloque pas la connexion)
+        }
         localStorage.setItem('token', d.token);
         remember
           ? localStorage.setItem('login_email', email)
@@ -145,6 +164,36 @@ export default function LoginPage() {
         router.replace('/dashboard');
       } else {
         setErr('Réponse inattendue du serveur.');
+      }
+    } catch (e: any) {
+      setErr(e?.message || 'Erreur réseau');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleTwoFactor(e: React.FormEvent) {
+    e.preventDefault();
+    setErr(null);
+    setLoading(true);
+    try {
+      const r = await callApi('/auth/2fa-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ tempToken, code: twoFactorCode }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setErr(d.message || 'Code invalide.');
+        return;
+      }
+      const d = await r.json();
+      if (d?.token) {
+        localStorage.setItem('token', d.token);
+        remember ? localStorage.setItem('login_email', email) : localStorage.removeItem('login_email');
+        await setAuthToken();
+        router.replace('/dashboard');
       }
     } catch (e: any) {
       setErr(e?.message || 'Erreur réseau');
@@ -314,7 +363,43 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {twoFactorStep && (
+            <form onSubmit={handleTwoFactor} className="space-y-4">
+              <div className="text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-teal-500/10 text-2xl">🔐</div>
+                <p className="text-sm font-semibold">Vérification en deux étapes</p>
+                <p className="mt-1 text-xs text-slate-400">Entrez le code à 6 chiffres de votre application d'authentification</p>
+              </div>
+              {err && (
+                <div className="flex gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" /><span>{err}</span>
+                </div>
+              )}
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                className="w-full rounded-xl border border-slate-600/60 bg-slate-800/50 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white placeholder-slate-500 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                autoFocus
+                autoComplete="one-time-code"
+              />
+              <button type="submit" disabled={loading || twoFactorCode.length !== 6}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 font-semibold text-white transition-all hover:bg-teal-500 disabled:opacity-50">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {loading ? 'Vérification…' : 'Vérifier le code'}
+              </button>
+              <button type="button" onClick={() => { setTwoFactorStep(false); setTwoFactorCode(''); setErr(null); }}
+                className="w-full text-center text-xs text-slate-400 hover:text-white">
+                ← Retour à la connexion
+              </button>
+            </form>
+          )}
+
+          {!twoFactorStep && <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name (register only) */}
             {mode === 'register' && (
               <div>
@@ -509,7 +594,7 @@ export default function LoginPage() {
                 Facebook
               </button>
             </div>
-          </form>
+          </form>}
 
           {/* Footer */}
           <div className="mt-8 text-center text-sm text-slate-400">
