@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { required, maxLen, minLen, hasErrors, type FormErrors } from '@/lib/validation';
 import { useRouter } from 'next/navigation';
 import {
   Pill,
@@ -25,7 +24,6 @@ import {
   Calendar,
   Search,
   Download,
-  Share2,
 } from 'lucide-react';
 
 interface MedicalDocument {
@@ -185,6 +183,22 @@ export default function MedicalDocumentsPage() {
     }
     return true;
   });
+
+  const openDocument = async (docId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${apiBase}/medical-documents/${docId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        window.open(url, '_blank');
+      }
+    } catch {
+      // fall through silently
+    }
+  };
 
   const deleteDocument = async (docId: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce document ?')) return;
@@ -426,23 +440,20 @@ export default function MedicalDocumentsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <a
-                      href={doc.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => openDocument(doc.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-300 bg-slate-700 rounded-lg hover:bg-slate-600 hover:text-white transition-colors border border-slate-600"
                     >
                       <Eye className="w-4 h-4" />
                       <span className="hidden sm:inline">Voir</span>
-                    </a>
-                    <a
-                      href={doc.fileUrl}
-                      download
+                    </button>
+                    <button
+                      onClick={() => openDocument(doc.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-teal-400 bg-teal-500/10 rounded-lg hover:bg-teal-500/20 transition-colors border border-teal-500/30"
                     >
                       <Download className="w-4 h-4" />
                       <span className="hidden sm:inline">Télécharger</span>
-                    </a>
+                    </button>
                     <button
                       onClick={() => deleteDocument(doc.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors border border-red-500/30"
@@ -487,59 +498,52 @@ function UploadModal({
   const [category, setCategory] = useState('OTHER');
   const [documentDate, setDocumentDate] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
-  const [fileUrl, setFileUrl] = useState('');
-  const [fileName, setFileName] = useState('');
-  const [fileType, setFileType] = useState('');
-  const [fileSize, setFileSize] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FormErrors<'fileUrl' | 'fileName' | 'title' | 'description'>>({});
+  const fileInputRef = { current: null as HTMLInputElement | null };
+
+  const handleFileChange = (selected: File | null) => {
+    if (!selected) return;
+    setFile(selected);
+    setError('');
+    if (!title) setTitle(selected.name.replace(/\.[^/.]+$/, ''));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    const errors: typeof fieldErrors = {
-      fileUrl: required(fileUrl, 'URL du fichier'),
-      fileName: required(fileName, 'Nom du fichier') ?? minLen(fileName, 1, 'Nom du fichier') ?? maxLen(fileName, 200, 'Nom du fichier'),
-      title: title ? maxLen(title, 200, 'Titre') : null,
-      description: description ? maxLen(description, 500, 'Description') : null,
-    };
-    setFieldErrors(errors);
-    if (hasErrors(errors)) return;
+    if (!file) { setError('Veuillez sélectionner un fichier'); return; }
 
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+    if (title.trim()) formData.append('title', title.trim());
+    if (description.trim()) formData.append('description', description.trim());
+    if (documentDate) formData.append('documentDate', documentDate);
+    formData.append('isPrivate', String(isPrivate));
+
     setLoading(true);
     try {
-      const res = await fetch(`${apiBase}/medical-documents`, {
+      const res = await fetch(`${apiBase}/medical-documents/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          fileName,
-          fileUrl,
-          fileType: fileType || 'application/octet-stream',
-          fileSize: fileSize || 0,
-          category,
-          title: title || null,
-          description: description || null,
-          documentDate: documentDate || null,
-          isPrivate,
-        }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
 
       if (res.ok) {
         const newDoc = await res.json();
         onSuccess(newDoc);
       } else {
-        setError('Erreur lors de l\'ajout du document');
+        const data = await res.json().catch(() => ({}));
+        setError((data as { message?: string }).message || 'Erreur lors de l\'envoi du fichier');
       }
-    } catch (err) {
-      console.error('Error uploading document:', err);
-      setError('Erreur lors de l\'ajout du document');
+    } catch {
+      setError('Erreur lors de l\'envoi du fichier');
     } finally {
       setLoading(false);
     }
@@ -577,36 +581,47 @@ function UploadModal({
               {error}
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              URL du fichier *
-            </label>
-            <input
-              type="url"
-              value={fileUrl}
-              onChange={(e) => { setFileUrl(e.target.value); setFieldErrors(fe => ({ ...fe, fileUrl: null })); }}
-              placeholder="https://example.com/document.pdf"
-              className={`w-full px-4 py-2.5 bg-slate-900 border rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all ${fieldErrors.fileUrl ? 'border-red-500' : 'border-slate-700'}`}
-            />
-            {fieldErrors.fileUrl && <p className="mt-1 text-xs text-red-400">{fieldErrors.fileUrl}</p>}
-            <p className="text-xs text-slate-500 mt-1.5">
-              Uploadez votre fichier sur un service cloud et collez le lien ici
-            </p>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Nom du fichier *
-            </label>
+          {/* File drop zone */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileChange(e.dataTransfer.files[0] ?? null); }}
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all ${
+              dragOver
+                ? 'border-teal-400 bg-teal-500/10'
+                : file
+                ? 'border-teal-500/50 bg-teal-500/5'
+                : 'border-slate-600 hover:border-slate-500 hover:bg-slate-700/30'
+            }`}
+          >
             <input
-              type="text"
-              value={fileName}
-              onChange={(e) => { setFileName(e.target.value); setFieldErrors(fe => ({ ...fe, fileName: null })); }}
-              placeholder="ordonnance-2024.pdf"
-              maxLength={200}
-              className={`w-full px-4 py-2.5 bg-slate-900 border rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all ${fieldErrors.fileName ? 'border-red-500' : 'border-slate-700'}`}
+              ref={(el) => { fileInputRef.current = el; }}
+              type="file"
+              className="hidden"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.doc,.docx,.xls,.xlsx,.txt,.csv"
+              onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
             />
-            {fieldErrors.fileName && <p className="mt-1 text-xs text-red-400">{fieldErrors.fileName}</p>}
+            {file ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="p-3 bg-teal-500/20 rounded-xl">
+                  <FileText className="w-8 h-8 text-teal-400" />
+                </div>
+                <p className="font-medium text-white">{file.name}</p>
+                <p className="text-sm text-slate-400">{formatFileSize(file.size)}</p>
+                <p className="text-xs text-teal-400">Cliquer pour changer</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div className="p-3 bg-slate-700 rounded-xl">
+                  <Upload className="w-8 h-8 text-slate-400" />
+                </div>
+                <p className="font-medium text-slate-300">Glissez un fichier ici</p>
+                <p className="text-sm text-slate-500">ou cliquez pour parcourir</p>
+                <p className="text-xs text-slate-600 mt-1">PDF, image, Word, Excel, texte</p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -616,12 +631,11 @@ function UploadModal({
             <input
               type="text"
               value={title}
-              onChange={(e) => { setTitle(e.target.value); setFieldErrors(fe => ({ ...fe, title: null })); }}
+              onChange={(e) => setTitle(e.target.value)}
               placeholder="Ordonnance Dr. Martin"
               maxLength={200}
               className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
             />
-            {fieldErrors.title && <p className="mt-1 text-xs text-red-400">{fieldErrors.title}</p>}
           </div>
 
           <div>
@@ -664,13 +678,12 @@ function UploadModal({
             </label>
             <textarea
               value={description}
-              onChange={(e) => { setDescription(e.target.value); setFieldErrors(fe => ({ ...fe, description: null })); }}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Notes supplémentaires..."
               rows={3}
               maxLength={500}
               className="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder:text-slate-500 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all resize-none"
             />
-            {fieldErrors.description && <p className="mt-1 text-xs text-red-400">{fieldErrors.description}</p>}
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-900 rounded-xl border border-slate-700 hover:border-slate-600 transition-colors">
@@ -701,11 +714,11 @@ function UploadModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !file}
               className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-teal-600 rounded-xl hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loading ? 'Ajout en cours...' : 'Ajouter le document'}
+              {loading ? 'Envoi en cours...' : 'Envoyer le document'}
             </button>
           </div>
         </form>

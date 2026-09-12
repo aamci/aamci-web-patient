@@ -2,9 +2,9 @@ export default function PolitiqueConfidentialite() {
   const sections = [
     {
       title: '1. Responsable du traitement',
-      content: `La plateforme Ibogha est éditée et exploitée par Ibogha SAS, responsable du traitement de vos données personnelles au sens du Règlement Général sur la Protection des Données (RGPD — Règlement UE 2016/679).
+      content: `La plateforme Ibogha241 est éditée et exploitée par Ibogha241 SAS, responsable du traitement de vos données personnelles au sens du Règlement Général sur la Protection des Données (RGPD — Règlement UE 2016/679).
 
-La présente politique s'applique à l'ensemble des applications et services Ibogha : portail web patient, portail web professionnel, application mobile patient et application mobile professionnelle (iOS & Android).`,
+La présente politique s'applique à l'ensemble des applications et services Ibogha241 : portail web patient, portail web professionnel, application mobile patient et application mobile professionnelle (iOS & Android).`,
     },
     {
       title: '2. Données collectées',
@@ -57,7 +57,7 @@ Les données médicales sont hébergées sur des serveurs conformes aux exigence
     },
     {
       title: '7. Sécurité des données',
-      content: `Ibogha met en œuvre les mesures suivantes pour protéger vos données :
+      content: `Ibogha241 met en œuvre les mesures suivantes pour protéger vos données :
 
 • Chiffrement en transit : toutes les communications via TLS 1.2+ (HTTPS)
 • Chiffrement au repos : données médicales chiffrées avec AES-256-GCM
@@ -85,7 +85,7 @@ Les applications mobiles n'utilisent pas de cookies. L'authentification est gér
     },
     {
       title: '10. Mineurs',
-      content: `La plateforme Ibogha est destinée aux personnes majeures. Les mineurs peuvent être pris en charge via le compte d'un représentant légal. Si vous constatez qu'un mineur a créé un compte directement, contactez-nous pour procéder à sa suppression.`,
+      content: `La plateforme Ibogha241 est destinée aux personnes majeures. Les mineurs peuvent être pris en charge via le compte d'un représentant légal. Si vous constatez qu'un mineur a créé un compte directement, contactez-nous pour procéder à sa suppression.`,
     },
     {
       title: '11. Modifications',
@@ -111,7 +111,7 @@ Nous répondons dans un délai d'un mois à compter de la réception de votre de
         </div>
 
         <div className="bg-teal-900/30 border border-teal-500/30 rounded-xl p-5 text-sm text-teal-300">
-          Ibogha collecte uniquement les données nécessaires à la mise en relation entre patients et
+          Ibogha241 collecte uniquement les données nécessaires à la mise en relation entre patients et
           professionnels de santé. Vos données médicales sont chiffrées et ne sont jamais revendues à des tiers.
         </div>
 
@@ -125,7 +125,7 @@ Nous répondons dans un délai d'un mois à compter de la réception de votre de
         ))}
 
         <div className="border-t border-slate-700 pt-6 text-slate-500 text-xs">
-          © 2026 Ibogha SAS — Tous droits réservés
+          © 2026 Ibogha241 SAS — Tous droits réservés
         </div>
       </div>
     </div>

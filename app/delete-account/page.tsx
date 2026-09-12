@@ -98,7 +98,7 @@ export default function DeleteAccountPage() {
             <Trash2 className="w-8 h-8 text-red-400" />
           </div>
           <h1 className="text-2xl font-bold text-white">Supprimer mon compte</h1>
-          <p className="text-slate-400 mt-2 text-sm">Application Ibogha Patient</p>
+          <p className="text-slate-400 mt-2 text-sm">Application Ibogha241 Patient</p>
         </div>
 
         {/* Status loading */}
@@ -125,7 +125,7 @@ export default function DeleteAccountPage() {
             <div className="mt-8 border-t border-slate-700 pt-6 text-left space-y-3">
               <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Procédure de suppression</p>
               {[
-                'Connectez-vous à votre compte Ibogha Patient',
+                'Connectez-vous à votre compte Ibogha241 Patient',
                 'Ouvrez la section « Mes données » dans votre compte',
                 'Cliquez sur « Supprimer mon compte »',
                 'Saisissez SUPPRIMER et confirmez',

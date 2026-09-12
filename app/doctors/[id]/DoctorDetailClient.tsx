@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Bell,
   Flag,
+  Pencil,
 } from 'lucide-react';
 import { useAuth } from '@/app/_providers/AuthProvider';
 import ReportBlockModal from '@/components/ReportBlockModal';
@@ -118,7 +119,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [booking, setBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [bookingStep, setBookingStep] = useState<'pour_qui' | 'lieu' | 'type' | 'details' | 'payment' | 'confirm'>('pour_qui');
+  const [bookingStep, setBookingStep] = useState<'pour_qui' | 'lieu' | 'details' | 'payment' | 'confirm'>('pour_qui');
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mobile' | 'onsite'>('card');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [bookingFor, setBookingFor] = useState<'me' | 'other'>('me');
@@ -138,6 +139,61 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
   const [recurrenceEnabled, setRecurrenceEnabled] = useState(false);
   const [recurrenceFrequency, setRecurrenceFrequency] = useState<'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'>('WEEKLY');
   const [recurrenceCount, setRecurrenceCount] = useState(4);
+
+  // Reviews
+  type Review = { id?: string; overallRating: number; punctualityRating?: number; communicationRating?: number; comment?: string; createdAt?: string; patient?: { fullName?: string } };
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewOverall, setReviewOverall] = useState(0);
+  const [reviewPunctuality, setReviewPunctuality] = useState(0);
+  const [reviewCommunication, setReviewCommunication] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+  const [reviewDone, setReviewDone] = useState(false);
+
+  async function loadReviews() {
+    setReviewsLoading(true);
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const url = apiBase ? `${apiBase}/reviews/doctor/${doctorId}` : `/reviews/doctor/${doctorId}`;
+      const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json().catch(() => []);
+        setReviews(Array.isArray(data) ? data : data?.data || []);
+      }
+    } catch (_) {}
+    finally { setReviewsLoading(false); }
+  }
+
+  async function submitReview() {
+    if (reviewOverall === 0) { setReviewError('Veuillez sélectionner une note globale.'); return; }
+    setReviewSubmitting(true); setReviewError('');
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const url = apiBase ? `${apiBase}/reviews` : '/reviews';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          doctorId,
+          overallRating: reviewOverall,
+          ...(reviewPunctuality > 0 ? { punctualityRating: reviewPunctuality } : {}),
+          ...(reviewCommunication > 0 ? { communicationRating: reviewCommunication } : {}),
+          ...(reviewComment.trim() ? { comment: reviewComment.trim() } : {}),
+          isPublic: true,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setReviewDone(true);
+      setShowReviewModal(false);
+      setReviewOverall(0); setReviewPunctuality(0); setReviewCommunication(0); setReviewComment('');
+      await loadReviews();
+    } catch (_) {
+      setReviewError('Erreur lors de l\'envoi. Vérifiez que vous avez eu un rendez-vous avec ce médecin.');
+    } finally { setReviewSubmitting(false); }
+  }
 
   // Load doctor, slots, appointment kinds
   useEffect(() => {
@@ -221,7 +277,8 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
     }
 
     loadData();
-  }, [apiBase, doctorId, user]);
+    loadReviews();
+  }, [apiBase, doctorId, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Get week dates based on offset
   const weekDates = useMemo(() => {
@@ -644,6 +701,39 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
               </div>
             )}
 
+            {/* Appointment type selector — comes BEFORE date/slot selection */}
+            {appointmentKinds.length > 0 && (
+              <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                <h4 className="text-sm font-semibold text-slate-200 mb-1">Type de consultation</h4>
+                <p className="text-xs text-slate-500 mb-3">Choisissez un type avant de sélectionner un créneau</p>
+                <div className="flex flex-wrap gap-2">
+                  {appointmentKinds.map((kind) => (
+                    <button
+                      key={kind.id}
+                      onClick={() => setSelectedKind(prev => prev === kind.id ? null : kind.id)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                        selectedKind === kind.id
+                          ? 'bg-teal-600 border-teal-500 text-white shadow-sm shadow-teal-500/20'
+                          : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 hover:border-slate-500'
+                      }`}
+                    >
+                      <span>{kind.label}</span>
+                      {kind.durationMinutes && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${selectedKind === kind.id ? 'bg-teal-700 text-teal-200' : 'bg-slate-600 text-slate-400'}`}>
+                          {kind.durationMinutes} min
+                        </span>
+                      )}
+                      {kind.requiresPrePayment && kind.price && (
+                        <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
+                          {Number(kind.price).toLocaleString('fr-FR')} FCFA
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Week navigation */}
             <div className="flex items-center justify-between">
               <button
@@ -669,36 +759,6 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-
-            {/* Appointment type selector */}
-            {appointmentKinds.length > 0 && (
-              <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                <h4 className="text-sm font-medium text-slate-300 mb-3">Type de consultation</h4>
-                <div className="flex flex-wrap gap-2">
-                  {appointmentKinds.map((kind) => (
-                    <button
-                      key={kind.id}
-                      onClick={() => setSelectedKind(prev => prev === kind.id ? null : kind.id)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedKind === kind.id
-                          ? 'bg-teal-600 text-white'
-                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
-                    >
-                      {kind.label}
-                      {kind.durationMinutes && (
-                        <span className="ml-2 text-xs opacity-70">{kind.durationMinutes} min</span>
-                      )}
-                      {kind.requiresPrePayment && (
-                        <span className="ml-1.5 text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
-                          {kind.price ? `${Number(kind.price).toLocaleString('fr-FR')} FCFA` : 'Prépayé'}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Slots grid */}
             <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
@@ -881,68 +941,94 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
         {/* Reviews Tab */}
         {activeTab === 'reviews' && (
           <div className="space-y-6">
-            {/* Reviews summary */}
-            <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-              <div className="flex flex-col md:flex-row md:items-center gap-6">
-                <div className="text-center">
-                  <div className="text-5xl font-bold text-white">4.8</div>
-                  <div className="flex items-center justify-center gap-1 mt-2">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Star
-                        key={i}
-                        className={`w-5 h-5 ${i <= 4 ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`}
-                      />
-                    ))}
-                  </div>
-                  <div className="text-sm text-slate-400 mt-1">Basé sur 47 avis</div>
-                </div>
-                <div className="flex-1 space-y-2">
-                  {[5, 4, 3, 2, 1].map((stars) => (
-                    <div key={stars} className="flex items-center gap-3">
-                      <span className="text-sm text-slate-400 w-8">{stars}</span>
-                      <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-amber-400 rounded-full"
-                          style={{ width: stars === 5 ? '70%' : stars === 4 ? '20%' : stars === 3 ? '8%' : '2%' }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Header with CTA */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-white">Avis patients</h3>
+              <button
+                onClick={() => { setShowReviewModal(true); setReviewError(''); setReviewDone(false); }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-500/10 text-teal-400 border border-teal-500/30 rounded-xl text-sm font-medium hover:bg-teal-500/20 transition-colors"
+              >
+                <Pencil className="w-4 h-4" />
+                Laisser un avis
+              </button>
             </div>
 
-            {/* Sample reviews */}
-            <div className="space-y-4">
-              {[
-                { name: 'Marie L.', rating: 5, date: 'Il y a 2 jours', comment: 'Excellent médecin, très à l\'écoute et professionnel. Je recommande vivement.' },
-                { name: 'Thomas P.', rating: 5, date: 'Il y a 1 semaine', comment: 'Consultation très agréable. Le docteur prend le temps d\'expliquer et de répondre à toutes les questions.' },
-                { name: 'Sophie M.', rating: 4, date: 'Il y a 2 semaines', comment: 'Bon praticien, ponctuel et compétent. Seul bémol : le temps d\'attente pour avoir un rendez-vous.' },
-              ].map((review, idx) => (
-                <div key={idx} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-sm font-medium text-white">
-                        {review.name.charAt(0)}
+            {reviewDone && (
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-green-400 text-sm">
+                Merci pour votre avis !
+              </div>
+            )}
+
+            {/* Summary */}
+            {reviews.length > 0 && (() => {
+              const avg = reviews.reduce((s, r) => s + r.overallRating, 0) / reviews.length;
+              const counts = [5,4,3,2,1].map(n => ({ n, c: reviews.filter(r => r.overallRating === n).length }));
+              return (
+                <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+                  <div className="flex flex-col md:flex-row md:items-center gap-6">
+                    <div className="text-center">
+                      <div className="text-5xl font-bold text-white">{avg.toFixed(1)}</div>
+                      <div className="flex items-center justify-center gap-1 mt-2">
+                        {[1,2,3,4,5].map(i => (
+                          <Star key={i} className={`w-5 h-5 ${i <= Math.round(avg) ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} />
+                        ))}
                       </div>
-                      <div>
-                        <div className="font-medium text-white">{review.name}</div>
-                        <div className="text-xs text-slate-400">{review.date}</div>
-                      </div>
+                      <div className="text-sm text-slate-400 mt-1">Basé sur {reviews.length} avis</div>
                     </div>
-                    <div className="flex items-center gap-0.5">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <Star
-                          key={i}
-                          className={`w-4 h-4 ${i <= review.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`}
-                        />
+                    <div className="flex-1 space-y-2">
+                      {counts.map(({ n, c }) => (
+                        <div key={n} className="flex items-center gap-3">
+                          <span className="text-sm text-slate-400 w-4">{n}</span>
+                          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-amber-400 rounded-full" style={{ width: reviews.length ? `${(c / reviews.length) * 100}%` : '0%' }} />
+                          </div>
+                          <span className="text-xs text-slate-500 w-4">{c}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
-                  <p className="text-slate-300 text-sm">{review.comment}</p>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
+
+            {/* Reviews list */}
+            {reviewsLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 text-teal-400 animate-spin" /></div>
+            ) : reviews.length === 0 ? (
+              <div className="bg-slate-800 rounded-xl p-8 border border-slate-700 text-center">
+                <Star className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-300 font-medium">Aucun avis pour ce médecin</p>
+                <p className="text-sm text-slate-500 mt-1">Soyez le premier à laisser un avis.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((r, idx) => {
+                  const name = r.patient?.fullName || 'Patient';
+                  const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+                  return (
+                    <div key={idx} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center text-sm font-bold text-teal-400">
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <div className="font-medium text-white">{name}</div>
+                            {date && <div className="text-xs text-slate-400">{date}</div>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {[1,2,3,4,5].map(i => (
+                            <Star key={i} className={`w-4 h-4 ${i <= r.overallRating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'}`} />
+                          ))}
+                        </div>
+                      </div>
+                      {r.comment && <p className="text-slate-300 text-sm">{r.comment}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -958,7 +1044,6 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                   {bookingSuccess ? 'Confirmation' :
                    bookingStep === 'pour_qui' ? 'Pour qui ?' :
                    bookingStep === 'lieu' ? 'Choisir le lieu' :
-                   bookingStep === 'type' ? 'Type de consultation' :
                    bookingStep === 'details' ? 'Détails du rendez-vous' :
                    bookingStep === 'payment' ? 'Paiement' : 'Récapitulatif'}
                 </h3>
@@ -975,8 +1060,8 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 <div className="flex items-center gap-1">
                   {(() => {
                     const STEPS = facilities.length > 1
-                      ? ['pour_qui', 'lieu', 'type', 'details', 'payment', 'confirm']
-                      : ['pour_qui', 'type', 'details', 'payment', 'confirm'];
+                      ? ['pour_qui', 'lieu', 'details', 'payment', 'confirm']
+                      : ['pour_qui', 'details', 'payment', 'confirm'];
                     const currentIdx = STEPS.indexOf(bookingStep);
                     return STEPS;
                   })().map((step, idx, STEPS) => {
@@ -1014,6 +1099,21 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 </div>
               ) : (
                 <>
+                  {/* Selected type badge - always visible when a kind is selected */}
+                  {selectedKind && appointmentKinds.find(k => k.id === selectedKind) && (
+                    <div className="flex items-center gap-2 bg-teal-600/10 border border-teal-500/30 rounded-xl px-3 py-2 mb-3">
+                      <Check className="w-3.5 h-3.5 text-teal-400 flex-shrink-0" />
+                      <span className="text-sm font-medium text-teal-300">
+                        {appointmentKinds.find(k => k.id === selectedKind)!.label}
+                      </span>
+                      {appointmentKinds.find(k => k.id === selectedKind)!.durationMinutes && (
+                        <span className="text-xs text-teal-500 ml-auto">
+                          {appointmentKinds.find(k => k.id === selectedKind)!.durationMinutes} min
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   {/* Date/time info - always visible */}
                   <div className="bg-slate-700/50 rounded-xl p-3 mb-3">
                     <div className="flex items-center gap-2.5">
@@ -1184,49 +1284,7 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                     </div>
                   )}
 
-                  {/* Step 1: Type selection */}
-                  {bookingStep === 'type' && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-400 mb-2">Sélectionnez le type de consultation</p>
-                      {appointmentKinds.length > 0 ? (
-                        appointmentKinds.map((kind) => (
-                          <button
-                            key={kind.id}
-                            onClick={() => setSelectedKind(prev => prev === kind.id ? null : kind.id)}
-                            className={`w-full p-3 rounded-xl border-2 transition-all text-left ${
-                              selectedKind === kind.id
-                                ? 'border-teal-500 bg-teal-600/10'
-                                : 'border-slate-700 hover:border-slate-600 bg-slate-700/50'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="text-sm font-medium text-white truncate">{kind.label}</div>
-                                <div className="text-xs text-slate-400">{kind.durationMinutes} min</div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                {kind.price && (
-                                  <div className="text-sm font-bold text-white">{kind.price} FCFA</div>
-                                )}
-                                <div className={`w-4 h-4 rounded-full border-2 ${
-                                  selectedKind === kind.id ? 'border-teal-500 bg-teal-500' : 'border-slate-500'
-                                }`}>
-                                  {selectedKind === kind.id && <Check className="w-full h-full text-white p-0.5" />}
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="p-3 rounded-xl border-2 border-teal-500 bg-teal-600/10">
-                          <div className="text-sm font-medium text-white">Consultation standard</div>
-                          <div className="text-xs text-slate-400">30 min</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Step 2: Details */}
+                  {/* Step: Details */}
                   {bookingStep === 'details' && (
                     <div className="space-y-4">
                       {/* Doctor info */}
@@ -1510,10 +1568,8 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                       closeModal();
                     } else if (bookingStep === 'lieu') {
                       setBookingStep('pour_qui');
-                    } else if (bookingStep === 'type') {
-                      setBookingStep(facilities.length > 1 ? 'lieu' : 'pour_qui');
                     } else if (bookingStep === 'details') {
-                      setBookingStep('type');
+                      setBookingStep(facilities.length > 1 ? 'lieu' : 'pour_qui');
                     } else if (bookingStep === 'payment') {
                       setBookingStep('details');
                     } else {
@@ -1533,15 +1589,13 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                         return;
                       }
                       setBookingError(null);
-                      setBookingStep(facilities.length > 1 ? 'lieu' : 'type');
+                      setBookingStep(facilities.length > 1 ? 'lieu' : 'details');
                     } else if (bookingStep === 'lieu') {
                       if (!selectedFacilityId) {
                         setBookingError('Veuillez choisir un établissement');
                         return;
                       }
                       setBookingError(null);
-                      setBookingStep('type');
-                    } else if (bookingStep === 'type') {
                       setBookingStep('details');
                     } else if (bookingStep === 'details') {
                       setBookingStep('payment');
@@ -1571,6 +1625,59 @@ export default function DoctorDetailClient({ doctorId }: { doctorId: string }) {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Review modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowReviewModal(false)}>
+          <div className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-slate-700">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Laisser un avis</h3>
+                <p className="text-sm text-slate-400 mt-0.5">{doctor?.fullName || 'Médecin'}</p>
+              </div>
+              <button onClick={() => setShowReviewModal(false)} className="text-slate-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5">
+              {[
+                { label: 'Note globale *', value: reviewOverall, set: setReviewOverall },
+                { label: 'Ponctualité', value: reviewPunctuality, set: setReviewPunctuality },
+                { label: 'Communication', value: reviewCommunication, set: setReviewCommunication },
+              ].map(({ label, value, set }) => (
+                <div key={label}>
+                  <p className="text-sm font-medium text-slate-300 mb-2">{label}</p>
+                  <div className="flex gap-1">
+                    {[1,2,3,4,5].map(n => (
+                      <button key={n} onClick={() => set(n)} className="group">
+                        <Star className={`w-8 h-8 transition-colors ${n <= value ? 'text-amber-400 fill-amber-400' : 'text-slate-600 group-hover:text-amber-400/50'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div>
+                <p className="text-sm font-medium text-slate-300 mb-2">Commentaire (optionnel)</p>
+                <textarea
+                  value={reviewComment}
+                  onChange={e => setReviewComment(e.target.value)}
+                  rows={3}
+                  placeholder="Partagez votre expérience..."
+                  className="w-full px-3 py-2.5 bg-slate-900 border border-slate-600 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-teal-500 resize-none"
+                />
+              </div>
+              {reviewError && <p className="text-red-400 text-xs">{reviewError}</p>}
+            </div>
+            <div className="p-6 pt-0 flex gap-3">
+              <button onClick={() => setShowReviewModal(false)} disabled={reviewSubmitting} className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 disabled:opacity-50 transition-colors">
+                Annuler
+              </button>
+              <button onClick={submitReview} disabled={reviewSubmitting || reviewOverall === 0} className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl font-medium hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                {reviewSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
+                {reviewSubmitting ? 'Envoi...' : 'Publier'}
+              </button>
+            </div>
           </div>
         </div>
       )}

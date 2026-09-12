@@ -97,7 +97,7 @@ export default function HomePage() {
             <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
               <Stethoscope className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">Ibogha</span>
+            <span className="text-xl font-bold text-gray-900">Ibogha241</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-gray-600">
             <Link href="/doctors" className="hover:text-teal-600 transition-colors">Médecins</Link>
@@ -219,7 +219,7 @@ export default function HomePage() {
               Tout ce dont vous avez besoin
             </h2>
             <p className="text-lg text-gray-500 max-w-xl mx-auto">
-              Ibogha centralise toute votre vie médicale dans une application simple et sécurisée.
+              Ibogha241 centralise toute votre vie médicale dans une application simple et sécurisée.
             </p>
           </div>
 
@@ -297,7 +297,7 @@ export default function HomePage() {
                 Consultez votre médecin sans vous déplacer
               </h2>
               <p className="text-gray-600 mb-6 leading-relaxed">
-                Avec Ibogha, rejoignez votre médecin en vidéo HD depuis votre domicile.
+                Avec Ibogha241, rejoignez votre médecin en vidéo HD depuis votre domicile.
                 Idéal pour les suivis, renouvellements d'ordonnances et consultations de routine.
               </p>
               <ul className="space-y-3 mb-8">
@@ -438,13 +438,13 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
                   <Stethoscope className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-white text-lg font-bold">Ibogha</span>
+                <span className="text-white text-lg font-bold">Ibogha241</span>
               </div>
               <p className="text-sm leading-relaxed">
                 Votre plateforme de santé numérique. Prenez soin de vous simplement.
               </p>
               <div className="mt-4">
-                <Link href="https://pro.ibogha.elowe.fr" className="text-teal-400 text-sm hover:text-teal-300">
+                <Link href="https://pro.ibogha241.elowe.fr" className="text-teal-400 text-sm hover:text-teal-300">
                   Vous êtes médecin ? →
                 </Link>
               </div>
@@ -461,7 +461,7 @@ export default function HomePage() {
             <div>
               <h4 className="text-white font-semibold mb-4 text-sm">Informations</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="#" className="hover:text-white transition-colors">À propos d'Ibogha</Link></li>
+                <li><Link href="#" className="hover:text-white transition-colors">À propos d'Ibogha241</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">Contact</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">FAQ</Link></li>
                 <li><Link href="#" className="hover:text-white transition-colors">Blog santé</Link></li>
@@ -478,7 +478,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-            <p>&copy; 2026 Ibogha. Tous droits réservés.</p>
+            <p>&copy; 2026 Ibogha241. Tous droits réservés.</p>
             <p className="text-gray-600">Fait avec ❤️ pour la santé numérique</p>
           </div>
         </div>

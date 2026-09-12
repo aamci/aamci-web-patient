@@ -17,6 +17,7 @@ import {
   Star,
   Download,
   CheckCircle,
+  ChevronRight,
 } from 'lucide-react';
 import { AppointmentCard, type Appointment } from '@/components/cards';
 
@@ -33,7 +34,7 @@ function downloadIcs(appt: Appointment) {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Ibogha 241//FR',
+    'PRODID:-//Ibogha241 241//FR',
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTART:${fmt(start)}`,
@@ -89,6 +90,16 @@ export default function AppointmentsPage() {
   const [reviewSending, setReviewSending] = useState(false);
   const [reviewDone, setReviewDone] = useState<string | null>(null); // appt id reviewed
   const [reviewErr, setReviewErr] = useState('');
+
+  // Reschedule
+  type Slot = { id?: string; start: string; end: string };
+  const [rescheduleAppt, setRescheduleAppt] = useState<Appointment | null>(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState<Slot[]>([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [rescheduleSelectedSlot, setRescheduleSelectedSlot] = useState<Slot | null>(null);
+  const [rescheduleConfirming, setRescheduleConfirming] = useState(false);
+  const [rescheduleErr, setRescheduleErr] = useState('');
 
   const openRating = useCallback((appt: Appointment) => {
     setRatingAppt(appt);
@@ -194,6 +205,59 @@ export default function AppointmentsPage() {
       setErr(error?.message || 'Échec du check-in');
     } finally {
       setCheckInId(null);
+    }
+  }
+
+  async function openReschedule(appt: Appointment) {
+    const doctorId = appt.doctor?.id || appt.slot?.ownerId;
+    if (!doctorId) return;
+    setRescheduleAppt(appt);
+    setRescheduleSelectedSlot(null);
+    setRescheduleErr('');
+    setRescheduleLoading(true);
+    try {
+      const data = await callApi(`/slots/available/${doctorId}`);
+      const now = new Date();
+      const slots: Slot[] = (Array.isArray(data) ? data : [])
+        .filter((s: Slot) => new Date(s.start) > now)
+        .sort((a: Slot, b: Slot) => new Date(a.start).getTime() - new Date(b.start).getTime())
+        .slice(0, 30);
+      setRescheduleSlots(slots);
+    } catch {
+      setRescheduleErr('Impossible de charger les créneaux disponibles.');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  }
+
+  async function confirmReschedule() {
+    if (!rescheduleAppt || !rescheduleSelectedSlot) return;
+    setRescheduleConfirming(true);
+    setRescheduleErr('');
+    try {
+      // 1. Annuler l'ancien RDV
+      await callApi(`/appointments/${rescheduleAppt.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'CANCELLED' }),
+      });
+      // 2. Créer un nouveau RDV sur le nouveau créneau
+      const doctorId = rescheduleAppt.doctor?.id || rescheduleAppt.slot?.ownerId;
+      await callApi('/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          doctorId,
+          slotStart: rescheduleSelectedSlot.start,
+          slotEnd: rescheduleSelectedSlot.end,
+          kindId: undefined,
+          notes: rescheduleAppt.notes || undefined,
+        }),
+      });
+      setRescheduleAppt(null);
+      await load();
+    } catch {
+      setRescheduleErr('Erreur lors du déplacement. Veuillez réessayer.');
+    } finally {
+      setRescheduleConfirming(false);
     }
   }
 
@@ -383,8 +447,10 @@ export default function AppointmentsPage() {
                 <AppointmentCard
                   appointment={a}
                   onCancel={() => cancel(a.id)}
+                  onReschedule={() => openReschedule(a)}
                   onCheckIn={() => checkIn(a.id)}
                   isLoading={actionId === a.id}
+                  rescheduleLoading={rescheduleId === a.id}
                   checkInLoading={checkInId === a.id}
                 />
                 <div className="flex gap-2 mt-1.5 pl-1">
@@ -470,6 +536,123 @@ export default function AppointmentsPage() {
               {reviewSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}
               {reviewSending ? 'Envoi...' : 'Publier l\'avis'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule modal */}
+      {rescheduleAppt && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { if (!rescheduleConfirming) setRescheduleAppt(null); }}
+        >
+          <div
+            className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-700 flex-shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Modifier le rendez-vous</h3>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  {rescheduleAppt.doctor?.fullName || rescheduleAppt.doctor?.name || 'Médecin'} · {rescheduleAppt.kind?.name || 'Consultation'}
+                </p>
+              </div>
+              <button
+                onClick={() => setRescheduleAppt(null)}
+                disabled={rescheduleConfirming}
+                className="text-slate-400 hover:text-white disabled:opacity-50 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {rescheduleLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+                  <p className="text-sm text-slate-400">Chargement des créneaux...</p>
+                </div>
+              ) : rescheduleSlots.length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarX className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                  <p className="text-slate-300 font-medium">Aucun créneau disponible</p>
+                  <p className="text-sm text-slate-500 mt-1">Ce médecin n&apos;a pas de créneaux disponibles pour le moment.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-400 mb-4">Choisissez un nouveau créneau :</p>
+                  {(() => {
+                    const grouped: Record<string, typeof rescheduleSlots> = {};
+                    rescheduleSlots.forEach((s) => {
+                      const d = new Date(s.start);
+                      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                      if (!grouped[key]) grouped[key] = [];
+                      grouped[key].push(s);
+                    });
+                    return Object.entries(grouped).map(([key, slots]) => {
+                      const date = new Date(slots[0].start);
+                      const dayLabel = date.toLocaleDateString('fr-FR', {
+                        weekday: 'long', day: 'numeric', month: 'long',
+                      });
+                      return (
+                        <div key={key} className="mb-5">
+                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 capitalize">{dayLabel}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {slots.map((slot, i) => {
+                              const isSelected = rescheduleSelectedSlot?.start === slot.start;
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => setRescheduleSelectedSlot(slot)}
+                                  className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                                    isSelected
+                                      ? 'bg-teal-500/20 border-teal-500/60 text-teal-300'
+                                      : 'bg-slate-700/50 border-slate-600 text-slate-300 hover:border-teal-500/40 hover:text-white'
+                                  }`}
+                                >
+                                  {new Date(slot.start).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </>
+              )}
+
+              {rescheduleErr && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex items-center gap-2">
+                  <X className="w-4 h-4 flex-shrink-0" />
+                  {rescheduleErr}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-slate-700 flex-shrink-0 flex gap-3">
+              <button
+                onClick={() => setRescheduleAppt(null)}
+                disabled={rescheduleConfirming}
+                className="flex-1 py-2.5 bg-slate-700 text-slate-300 rounded-xl font-medium hover:bg-slate-600 disabled:opacity-50 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={confirmReschedule}
+                disabled={!rescheduleSelectedSlot || rescheduleConfirming}
+                className="flex-1 py-2.5 bg-teal-500 text-white rounded-xl font-medium hover:bg-teal-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {rescheduleConfirming ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Déplacement...</>
+                ) : (
+                  <><CalendarCheck className="w-4 h-4" /> Confirmer le déplacement</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

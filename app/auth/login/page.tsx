@@ -268,7 +268,7 @@ export default function LoginPage() {
         </div>
 
         <div className="text-slate-500 text-xs text-center space-y-1">
-          <div>© 2026 Ibogha Health. Tous droits réservés.</div>
+          <div>© 2026 Ibogha241 Health. Tous droits réservés.</div>
           <div className="flex items-center justify-center gap-3">
             <a href="/conditions-utilisation" className="hover:text-teal-400 transition-colors">CGU</a>
             <span>·</span>

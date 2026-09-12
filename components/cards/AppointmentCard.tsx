@@ -14,6 +14,7 @@ import {
   MapPin,
   Video,
   UserCheck,
+  Pencil,
 } from 'lucide-react';
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'COMPLETED';
@@ -49,8 +50,10 @@ export interface Appointment {
 export interface AppointmentCardProps {
   appointment: Appointment;
   onCancel?: () => void;
+  onReschedule?: () => void;
   onCheckIn?: () => void;
   isLoading?: boolean;
+  rescheduleLoading?: boolean;
   checkInLoading?: boolean;
   showAddToCalendar?: boolean;
   showDoctorLink?: boolean;
@@ -101,8 +104,10 @@ const STATUS_CONFIG: Record<
 export default function AppointmentCard({
   appointment,
   onCancel,
+  onReschedule,
   onCheckIn,
   isLoading = false,
+  rescheduleLoading = false,
   checkInLoading = false,
   showAddToCalendar = true,
   showDoctorLink = true,
@@ -242,6 +247,23 @@ export default function AppointmentCard({
                   <User className="w-4 h-4" />
                   Voir le médecin
                 </Link>
+              )}
+
+              {onReschedule && isUpcoming && appointment.status !== 'CANCELLED' && hoursUntil >= 48 && (
+                <button
+                  onClick={onReschedule}
+                  disabled={rescheduleLoading || isLoading}
+                  className={`px-4 py-2 bg-teal-500/10 text-teal-400 rounded-lg text-[13px] font-medium inline-flex items-center gap-1.5 hover:bg-teal-500/20 transition-colors border border-teal-500/30 ${
+                    rescheduleLoading ? 'opacity-60 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {rescheduleLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Pencil className="w-4 h-4" />
+                  )}
+                  Modifier
+                </button>
               )}
 
               {onCancel && isUpcoming && appointment.status !== 'CANCELLED' && (
