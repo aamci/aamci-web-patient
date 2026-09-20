@@ -40,8 +40,10 @@ export default function DoctorsPage() {
   const specialty = searchParams.get('specialty') ?? '';
   const language = searchParams.get('language') ?? '';
 
+  const hasAnyParam = !!(q || city || availableIn || video || gender || specialty || language);
+
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasAnyParam);
   const [showAdvanced, setShowAdvanced] = useState(!!(gender || specialty || language));
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [compareIds, setCompareIds] = useState<string[]>([]);
@@ -60,6 +62,11 @@ export default function DoctorsPage() {
   const compareDoctors = useMemo(() => doctors.filter(d => compareIds.includes(d.id)), [doctors, compareIds]);
 
   useEffect(() => {
+    if (!hasAnyParam) {
+      setDoctors([]);
+      setLoading(false);
+      return;
+    }
     async function load() {
       setLoading(true);
       const params = new URLSearchParams();
@@ -85,7 +92,7 @@ export default function DoctorsPage() {
       }
     }
     load();
-  }, [apiBase, q, city, availableIn, video, gender, specialty, language]);
+  }, [apiBase, q, city, availableIn, video, gender, specialty, language, hasAnyParam]);
 
   function onSubmit(formData: FormData) {
     const nxtQ = formData.get('q')?.toString() ?? '';
@@ -305,7 +312,15 @@ export default function DoctorsPage() {
       )}
 
       {/* Results */}
-      {loading ? (
+      {!hasAnyParam ? (
+        <div className="text-center py-20">
+          <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center mx-auto mb-5">
+            <Search className="w-9 h-9 text-slate-500" />
+          </div>
+          <p className="text-slate-300 font-semibold text-lg mb-2">Trouvez votre médecin</p>
+          <p className="text-slate-500 text-sm">Saisissez un nom, une spécialité ou une ville pour commencer</p>
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
         </div>
@@ -330,9 +345,7 @@ export default function DoctorsPage() {
               <Search className="w-12 h-12 text-slate-600 mx-auto mb-4" />
               <p className="text-slate-400 font-medium">Aucun médecin trouvé.</p>
               <p className="text-slate-500 text-sm mt-1">
-                {hasActiveFilters
-                  ? 'Essayez de modifier ou d\'enlever des filtres.'
-                  : 'Essayez avec un autre nom ou une autre spécialité.'}
+                Essayez avec un autre nom, une autre spécialité ou une autre ville.
               </p>
             </div>
           )}
